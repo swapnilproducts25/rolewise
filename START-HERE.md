@@ -13,7 +13,7 @@ Setup takes about 30 minutes. Have your CV (PDF or Word) to hand.
   during setup.
 
 ## Setup
-1. **Make your own private copy.** Open the Rolewise link you were sent and click **Use this template** →
+1. **Make your own private copy.** Open github.com/swapnilproducts25/rolewise and click **Use this template** →
    **Create a new repository**. Name it `rolewise`, choose **Private**, and click **Create repository**.
 2. **Connect Claude to GitHub and Google.** Go to claude.ai → Settings → **Connectors** and turn on **Gmail** and
    **Google Drive**. Then go to **claude.ai/code** and connect GitHub when it asks. Give it access to your `rolewise` repository.
@@ -45,8 +45,9 @@ Ask Rolewise "set up Rolewise Fill" and it walks you through it in about 5 minut
 
 ## Your data
 Your CV, answers and job tracker live in your own **private** GitHub copy and your own Gmail/Drive. Claude processes
-them to do the work. Nobody else can see them, including the person who shared Rolewise with you.
+them to do the work. Nobody else can see them, including the maker of Rolewise. Check every CV, letter and form before you submit:
+AI can make mistakes, and you're responsible for what you send (see README).
 
 ## Feedback
-Once a week, open `FEEDBACK.md` in your copy, answer the questions (2 minutes) and send them back. Bugs or confusing
-moments: tell us as they happen. A screenshot is perfect.
+On the Rolewise GitHub page, go to **Issues → New issue**. Pick **Feedback** (2 minutes; once a week helps a lot) or
+**Something went wrong** (a screenshot is perfect). Issues are public, so leave out personal details.

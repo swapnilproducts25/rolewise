@@ -1,0 +1,43 @@
+name: Feedback
+description: Tell us what's working, what isn't, and what you'd change (2 minutes).
+labels: [feedback]
+body:
+  - type: markdown
+    attributes:
+      value: "Thank you! Issues are public: please don't include personal details."
+  - type: input
+    id: field
+    attributes:
+      label: Your field and the role you're targeting
+      placeholder: "e.g. Nursing, Ward Manager; or Data, Senior Analyst"
+  - type: dropdown
+    id: useful
+    attributes:
+      label: How much has Rolewise helped your search? (1 = not at all, 5 = a lot)
+      options: ["1", "2", "3", "4", "5"]
+    validations:
+      required: true
+  - type: input
+    id: matches
+    attributes:
+      label: Of the jobs it showed you, roughly how many were worth applying to?
+      placeholder: "e.g. 6 of 15"
+  - type: dropdown
+    id: cv
+    attributes:
+      label: Would you send its CVs and cover letters as they are?
+      options: ["Yes", "With small edits", "No"]
+  - type: input
+    id: minutes
+    attributes:
+      label: Minutes a day you spend on Rolewise
+  - type: textarea
+    id: one-thing
+    attributes:
+      label: The one thing you'd change or add
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: "Optional: results so far (applications, replies, interviews)"

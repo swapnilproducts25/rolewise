@@ -1,0 +1,38 @@
+name: Something went wrong
+description: A step failed, a form didn't fill, or Rolewise did something unexpected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Issues are public. Please don't include your CV, email, phone number or other personal details."
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where were you using Rolewise?
+      options: [Claude website (claude.ai/code), Claude phone app, Claude Code on a laptop]
+    validations:
+      required: true
+  - type: dropdown
+    id: step
+    attributes:
+      label: Which part?
+      options: [Setup (/onboard), Daily briefing email, Finding jobs, CV or cover letter, Rolewise Fill add-on, Tracking emails, Interview prep, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      placeholder: "e.g. The briefing arrived but the Prepare button opened an empty email."
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Error message or screenshot (optional)
+      description: Paste the error text or drag in a screenshot. Blur any personal details first.
+  - type: input
+    id: site
+    attributes:
+      label: For Rolewise Fill problems, the job-site address (optional)
+      placeholder: "e.g. jobs.lever.co"

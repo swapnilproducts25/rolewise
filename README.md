@@ -1,52 +1,51 @@
-# Rolewise: start here
+# Rolewise
 
-Rolewise is a job-search assistant that runs inside Claude. Each morning it finds jobs that fit you, tailors your
-CV, prepares the application and emails you a short briefing with buttons. It works from the Claude website and the
-Claude phone app. Nothing to install.
+**A job-search assistant that runs inside Claude.** Each morning Rolewise finds jobs that fit you, tailors your
+CV, drafts the cover letter and form answers, and emails you a short briefing with buttons. You decide what to
+apply for and you click Submit. It works from the Claude website and the Claude phone app, and suits any profession.
 
-Setup takes about 30 minutes. Have your CV (PDF or Word) to hand.
+Free and open source. Your data stays in your own accounts.
+
+## What it does
+- **Finds jobs**: company career pages for the companies you pick, your LinkedIn job-alert emails, and job boards.
+  Each role is scored for fit with a one-line reason.
+- **Tailors your CV** for each role, using only facts from your own CV, in one of three clean styles.
+- **Drafts cover letters and form answers** in plain, human language.
+- **Tracks every application** by reading your Gmail for confirmations, rejections and interview invites.
+- **Prepares you for interviews** and helps afterwards with debriefs, follow-ups and offer negotiation.
+- **Coaches you** each week: what's working and what to change.
+- Optional **Rolewise Fill** Chrome add-on (laptop): fills application forms on Greenhouse, Lever, Ashby,
+  Workable, SmartRecruiters and Homerun (most tested on Greenhouse so far). You check the form and click Submit.
 
 ## What you need
 - A Claude **Pro or Max** plan (claude.ai).
-- A **Gmail** address: your briefing goes there.
-- A free **GitHub** account (github.com/signup). It's where your private copy of Rolewise lives. You only use it
-  during setup.
+- A **Gmail** address.
+- A free **GitHub** account (for your private copy).
 
-## Setup
-1. **Make your own private copy.** Open the Rolewise link you were sent and click **Use this template** →
-   **Create a new repository**. Name it `rolewise`, choose **Private**, and click **Create repository**.
-2. **Connect Claude to GitHub and Google.** Go to claude.ai → Settings → **Connectors** and turn on **Gmail** and
-   **Google Drive**. Then go to **claude.ai/code** and connect GitHub when it asks. Give it access to your `rolewise` repository.
-3. **Start.** At claude.ai/code (or the **Code** tab in the Claude phone app), pick your `rolewise` repository and
-   type **`/onboard`**. Rolewise reads your CV, asks about 10 short questions (roles, places, salary floor, notice
-   period...), shows you three CV styles and sets up your daily run.
+## Get started (about 30 minutes)
+Click **Use this template** → **Create a new repository**, choose **Private**, then follow
+**[START-HERE.md](START-HERE.md)**.
 
-You'll get your first briefing the same day.
+## Ground rules Rolewise follows
+- It never submits an application, sends an email or messages anyone without your yes. The one exception is your
+  own daily briefing.
+- It never invents experience: every CV line and answer traces back to your own CV and answers.
+- It never enters passwords, codes or payment details.
+- It doesn't automate LinkedIn: no scraping, no automated messages or connection requests.
+- It flags likely scams (fees, crypto, ID requests before an interview, chat-app-only "recruiters").
 
-## Every day (5–10 minutes, phone is fine)
-1. Read the **Rolewise briefing** email.
-2. Tap the buttons, such as **Prepare** or **Skip**, or answer a question. A tap opens an email to yourself; hit send.
-   Rolewise reads it on the next run.
-3. To apply, tap **Open job** and upload the CV from the **CV** link. The answers to paste are in the card.
-   You always click Submit yourself.
+## Your data and privacy
+Rolewise has no servers and no account with us. Your CV, answers and job tracker live in **your own private
+GitHub copy** and **your own Gmail and Google Drive**. Claude (Anthropic) processes them to do the work, under your
+Claude account's terms. Nobody else, including the maker of Rolewise, can see your copy.
 
-Change anything, any time, in plain words: open a session in claude.ai/code and type `/profile` ("add Berlin",
-"my notice is now 2 weeks", "use the compact CV"). Also handy: `/prep <company>` before an interview,
-`/debrief <company>` after one, `/coach` for a weekly review.
+## Please note
+- **Use at your own risk.** Rolewise is provided as is, with no warranty (see [LICENSE](LICENSE)). AI can make
+  mistakes: **check every CV, letter and form before you submit it.** You are responsible for what you send.
+- Follow the terms of the sites you use (LinkedIn, job boards, employer portals).
+- Rolewise isn't affiliated with Anthropic, LinkedIn, GitHub or any employer or job site.
+- It doesn't give legal, immigration, tax or financial advice. Salary suggestions are market estimates, not advice.
 
-**Optional, if you have a laptop with Chrome:** the **Rolewise Fill** add-on fills application forms for you.
-Ask Rolewise "set up Rolewise Fill" and it walks you through it in about 5 minutes.
-
-## What Rolewise never does
-- Submit an application, send an email or message anyone without your yes.
-- Invent anything: every CV line and answer comes from your own CV and answers.
-- Enter passwords, codes or payment details.
-- Message people or send connection requests on LinkedIn for you.
-
-## Your data
-Your CV, answers and job tracker live in your own **private** GitHub copy and your own Gmail/Drive. Claude processes
-them to do the work. Nobody else can see them, including the person who shared Rolewise with you.
-
-## Feedback
-Once a week, open `FEEDBACK.md` in your copy, answer the questions (2 minutes) and send them back. Bugs or confusing
-moments: tell us as they happen. A screenshot is perfect.
+## Feedback and problems
+Use **[Issues → New issue](https://github.com/swapnilproducts25/rolewise/issues/new/choose)**: "Something went wrong" or "Feedback". Please don't paste
+your CV, email address, phone number or other personal details there. Issues are public.
