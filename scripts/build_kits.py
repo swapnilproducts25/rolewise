@@ -141,6 +141,12 @@ def base_answers(profile, job):
     phone = c.get("phone", "") if home else per_region(c.get("phone_by_region"), c, "phone", c.get("phone", ""))
     salary = per_region(comp.get("expected_by_region"), comp, "expected_salary", comp.get("fallback", ""))
     salary = re.sub(r"\s*\(.*?\)", "", salary.split("if a number is required:")[-1]).strip() or "Negotiable"
+    # Dropdown forms list salary bands: also give the floor as a yearly number ("*band:N*"), and monthly as backup.
+    floor = next((float(x.replace(",", "").replace(" ", "")) * (1000 if x.lower().endswith("k") else 1)
+                  for x in re.findall(r"\d[\d, ]*\d(?:k)?|\d+k", salary, re.I)), None)
+    monthly = bool(re.search(r"month", salary, re.I))
+    salary_answer = [salary] + ([f"*band:{int(floor * 12 if monthly else floor)}*", f"*band:{int(floor if monthly else floor / 12)}*"]
+                                if floor and floor >= 1000 else [])
     parts = [p.strip() for p in here.split(",") if p.strip()]
     country = job_country({"location": here}) or parts[-1:]
     return {
@@ -154,12 +160,13 @@ def base_answers(profile, job):
         "degree": education()[1],
         "job_country": job_country(job),
         "discipline": disciplines(),
-        "salary": salary, "notice": avail.get("notice_period", "Immediately available"),
+        "salary": salary_answer, "notice": avail.get("notice_period", "Immediately available"),
         "start_date": avail.get("start_date", "Immediately"),
         # choice answers: list of option prefixes to try, in order
         "authorised": ["I am authorised", "Yes"], "sponsorship": ["No"], "relocate": ["Yes"],
         "hybrid": ["Yes"], "previously_worked": ["No"],
-        "heard": [std.get("how_did_you_hear", "Job Board"), "Job Board", "Company website", "LinkedIn", "Other"],
+        "heard": [std.get("how_did_you_hear", "Job Board"), "Job Board", "Company website", "Careers", "LinkedIn",
+                  "Other", "*any*"],   # low-stakes: if none fits, the first real option
         "future_emails": ["Yes"],
         "whatsapp": [std.get("whatsapp_opt_in", "Yes")], "remote": [std.get("remote_work_preference", "No")],
         "recording_consent": ["Yes", "I consent", "I agree", "I acknowledge"], "location_choice": [std.get("location_dropdown_no_uae_option", "EMEA - Other"), "Other"],

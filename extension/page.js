@@ -20,8 +20,32 @@
 
   const flat = opts => (opts || []).flatMap(o => (o && o.options ? o.options : [o]));
   // Prefix match first; substring match only for longer terms (so "MDI" can't hit an unrelated school name).
-  const match = (opts, w) => opts.find(o => low(o.label).startsWith(low(w)))
-    || (low(w).length >= 6 ? opts.find(o => low(o.label).includes(low(w))) : undefined);
+
+  // "*band:N*" picks the range option that contains N ("90 000 EUR - 100 000 EUR", "less than 40k", "more than 220 000");
+  // "*any*" picks the first real option (only used as the last fallback for low-stakes questions).
+  const nums = t => (String(t).replace(/(\d)[\s,.'](?=\d{3}\b)/g, "$1").match(/\d+(?:\.\d+)?\s*k?/gi) || [])
+    .map(x => parseFloat(x) * (/k/i.test(x) ? 1000 : 1));
+  function bandPick(items, text, n) {
+    const ranged = items.map(it => {
+      const t = low(text(it)), v = nums(t);
+      if (!v.length) return null;
+      if (/less than|under|below|up to/.test(t)) return { it, lo: 0, hi: v[0] };
+      if (/more than|over|above|\+|or more/.test(t)) return { it, lo: v[0], hi: Infinity };
+      return { it, lo: v[0], hi: v[1] ?? v[0] };
+    }).filter(Boolean);
+    const top = Math.max(...ranged.map(r => (r.hi === Infinity ? r.lo : r.hi)));
+    if (!ranged.length || n > top * 3 || n < top / 20) return null;   // wrong scale (monthly vs yearly)
+    const hit = ranged.find(r => n >= r.lo && n < r.hi) || ranged.find(r => r.hi === Infinity && n >= r.lo);
+    return hit ? hit.it : null;
+  }
+  const PLACEHOLDER = /^(select|choose|please|--|—|$)/i;
+  const match = (opts, w) => {
+    const band = /^\*band:(\d+)\*$/.exec(w);
+    if (band) return bandPick(opts, o => o.label, +band[1]);
+    if (w === "*any*") return opts.find(o => !PLACEHOLDER.test(String(o.label).trim()));
+    return opts.find(o => low(o.label).startsWith(low(w)))
+      || (low(w).length >= 6 ? opts.find(o => low(o.label).includes(low(w))) : undefined);
+  };
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // Paginated async selects return {options, hasMore}; classic ones call back with an array.

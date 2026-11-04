@@ -91,9 +91,32 @@
   }
 
   const asList = v => (Array.isArray(v) ? v : [v]).filter(x => x !== undefined && x !== null).map(String);
+
+  // "*band:N*" picks the range option that contains N ("90 000 EUR - 100 000 EUR", "less than 40k", "more than 220 000");
+  // "*any*" picks the first real option (only used as the last fallback for low-stakes questions).
+  const nums = t => (String(t).replace(/(\d)[\s,.'](?=\d{3}\b)/g, "$1").match(/\d+(?:\.\d+)?\s*k?/gi) || [])
+    .map(x => parseFloat(x) * (/k/i.test(x) ? 1000 : 1));
+  function bandPick(items, text, n) {
+    const ranged = items.map(it => {
+      const t = low(text(it)), v = nums(t);
+      if (!v.length) return null;
+      if (/less than|under|below|up to/.test(t)) return { it, lo: 0, hi: v[0] };
+      if (/more than|over|above|\+|or more/.test(t)) return { it, lo: v[0], hi: Infinity };
+      return { it, lo: v[0], hi: v[1] ?? v[0] };
+    }).filter(Boolean);
+    const top = Math.max(...ranged.map(r => (r.hi === Infinity ? r.lo : r.hi)));
+    if (!ranged.length || n > top * 3 || n < top / 20) return null;   // wrong scale (monthly vs yearly)
+    const hit = ranged.find(r => n >= r.lo && n < r.hi) || ranged.find(r => r.hi === Infinity && n >= r.lo);
+    return hit ? hit.it : null;
+  }
+  const PLACEHOLDER = /^(select|choose|please|--|—|$)/i;
   const pick = (texts, wanted) => {
     for (const w of asList(wanted)) {
-      const hit = texts.find(t => low(t.text).startsWith(low(w)));
+      const band = /^\*band:(\d+)\*$/.exec(w);
+      const hit = band ? bandPick(texts, t => t.text, +band[1])
+        : w === "*any*" ? texts.find(t => !PLACEHOLDER.test(t.text.trim()))
+        : texts.find(t => low(t.text).startsWith(low(w)))
+          || (low(w).length >= 6 ? texts.find(t => low(t.text).includes(low(w))) : undefined);
       if (hit) return hit;
     }
     return null;
@@ -149,6 +172,7 @@
     await sleep(3000); // let the form re-render after uploads before typing
 
     const seen = new Set();
+    const answered = new Set();
     const controls = [...document.querySelectorAll("input, textarea, select")]
       .filter(el => !["hidden", "file", "submit", "button", "search"].includes(el.type) && !el.disabled
         && !(el.id || "").startsWith("g-recaptcha") && el.offsetParent !== null);
@@ -176,6 +200,20 @@
           continue;
         }
         if (!el.checked && CONSENT.test(L)) { el.click(); report.filled.push(`☑ ${label.slice(0, 60)}`); continue; }
+        // Checkbox questions ("How did you hear about us?"): answer the question once, by its fieldset label.
+        const fs = el.closest("fieldset");
+        if (fs) {
+          if (!seen.has(fs)) {
+            seen.add(fs);
+            const boxes = [...fs.querySelectorAll("input[type=checkbox]")];
+            const gv = lookup(labelFor(fs), kit);
+            if (gv !== undefined && gv !== IGNORE && !boxes.some(b => b.checked)) {
+              const hit = pick(boxes.map(b => ({ el: b, text: labelFor(b) })), gv);
+              if (hit) { hit.el.click(); report.filled.push(labelFor(fs)); answered.add(fs); }
+            }
+          }
+          if (answered.has(fs)) continue;
+        }
         const v = lookup(label, kit);
         if (v === IGNORE) continue;
         if (!el.checked && v && asList(v).some(x => L.startsWith(low(x)))) { el.click(); report.filled.push(label); }
