@@ -119,14 +119,19 @@
   }
 
   async function attachFiles(kit, report) {
+    // Upload widgets (Homerun, Workable) can render after the text fields: wait up to 8s for them.
+    for (let i = 0; i < 16 && !document.querySelector("input[type=file]"); i++) await sleep(500);
     const inputs = [...document.querySelectorAll("input[type=file]")];
     for (const input of inputs) {
       const L = low(labelFor(input) + " " + input.id + " " + input.name);
       const kind = /cover/.test(L) ? "cover_letter" : /resume|cv\b|curriculum/.test(L) ? "cv" : null;
       if (!kind || !kit.files[kind] || (input.files && input.files.length)) continue;
       const path = kit.files[kind];
-      const blob = await (await fetch(chrome.runtime.getURL(path))).blob();
       const name = path.split("/").pop();
+      // Some widgets upload on change and then clear the input: look for the file name nearby to avoid duplicates.
+      const box = input.closest("fieldset, [class*=question], [class*=field], [class*=upload], li") || input.parentElement;
+      if (report.filled.some(f => f.endsWith(name)) || (box && box.innerText.includes(name))) continue;
+      const blob = await (await fetch(chrome.runtime.getURL(path))).blob();
       const type = name.endsWith(".pdf") ? "application/pdf"
         : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       const dt = new DataTransfer();
@@ -204,6 +209,8 @@
       else if (Array.isArray(v) && v.length) { setNative(el, String(v[0])); report.filled.push(label); }
       else if (el.required || el.getAttribute("aria-required") === "true") report.missing.push(label);
     }
+    await attachFiles(kit, report);   // second pass: upload boxes that appeared while the form was being filled
+    if (kit.files.cv && document.querySelector("input[type=file]") && !report.filled.some(f => f.startsWith("CV"))) report.missing.push("CV upload (attach it yourself)");
     report.filled = [...new Set(report.filled)];
     report.missing = [...new Set(report.missing)].filter(m => m && !report.filled.includes(m));
     // Highlight what still needs the user.
