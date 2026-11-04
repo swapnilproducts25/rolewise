@@ -20,3 +20,5 @@ Files: `profile/user.yaml` (identity, CV style, run mode), `profile/answers.yaml
 - **CV facts** ("add my new certification", "I also led X") → update `master-cv.yaml` only with what they state;
   never embellish. Ask for the missing date or number rather than guessing.
 - Facts change, so do kits: after any edit that affects forms, run `scripts/build_kits.py` so Rolewise Fill uses it.
+- **Choices**: when a change has a few likely answers (CV style, notice period, regions), ask with the AskUserQuestion tool
+  so they can tap instead of type.

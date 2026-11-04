@@ -30,7 +30,7 @@ Inputs: `applications/<id>/jd.md`, `profile/master-cv.yaml`, `profile/story-bank
   - If `profile/reference/` holds extra notes the user has approved, they may supply detail for rewording a bullet, **never a number or claim marked [VERIFY] or [ADD]**. Note any such use in `fit.md`.
 - **Truth check before building** — diff every changed bullet against its master id: same facts, same numbers, no new tools/claims. If a JD requirement could be covered by something not in the files, ask the user and add it to master/story-bank once confirmed.
 - Build: write `applications/<id>/tailor.yaml` (set `variant: <name>` when `master-cv.yaml` has a contact variant for the job's region, e.g. `eu`) and run `.venv/Scripts/python scripts/tailor_cv.py <id>`. It applies the variant to the contact line. **Check the header** of the built CV matches the job region.
-- Then make the files submission-ready: `.venv/Scripts/python scripts/build_cover_letter.py <id>` (if a cover letter was written), `.venv/Scripts/python scripts/to_pdf.py <id>` (PDF versions, needs LibreOffice; on cloud runs skip if unavailable) and `.venv/Scripts/python scripts/build_kits.py <id>` (Rolewise Fill kit, prefers the PDFs).
+- Then make the files submission-ready: `.venv/Scripts/python scripts/build_cover_letter.py <id>` (if a cover letter was written), `.venv/Scripts/python scripts/to_pdf.py <id>` (PDF versions; on a cloud machine it installs LibreOffice once per session, and if that fails the .docx is used) and `.venv/Scripts/python scripts/build_kits.py <id>` (Rolewise Fill kit, prefers the PDFs).
 - Update tracker: `tracker.py update <id> --status preparing --set cv_file="applications/<id>/<file_prefix> - CV - <Company>.docx"`
 
 ## 3. Optional cover letter

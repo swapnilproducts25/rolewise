@@ -25,22 +25,33 @@ skills[{label, items[]}], plus `variants` only if they use a different contact l
 exactly; **bold** the lead phrase and the key result of each bullet; no new numbers, tools or claims. Then show a
 6-line summary (name, latest role, years, top 3 strengths you see) and ask "Anything wrong or missing?". Fix, move on.
 
-## 2. Ten questions (two short rounds; pre-fill what the CV already answers and just ask to confirm)
-Round A, about them:
-1. Name and email for the daily briefing (default: from the CV; must be the Gmail connected to Claude).
-2. Phone number(s), international format. A second number for another region is optional.
-3. Where do you live now (city, country)?
-4. Citizenship(s) and any visa or residency. Which regions can you work in without sponsorship?
-5. Notice period / earliest start date.
-Round B, about the search:
-6. Which roles? Titles and seniority (suggest 3–5 from the CV; they can edit).
-7. Where? Cities, countries, remote. Open to relocating?
-8. Salary floor per region (or "prefer not to state": forms then say "negotiable").
-9. CV style: build previews from THEIR CV (`python scripts/render_cv.py profile/master-cv.yaml
-   "cv-styles/<Name> - <style>.docx" <style>` for classic, modern and compact). On the web, upload the three to their
-   Drive "Rolewise" folder (step 3) and give the links; on a laptop, convert with LibreOffice and open them.
-   Ask them to pick one. Default: modern.
-10. Anything Rolewise should never do or always avoid (companies, industries, words)? Optional.
+## 2. Ten questions: tap, don't type
+Make answering effortless:
+- **Use the AskUserQuestion tool for every question with likely answers** (it shows clickable options plus "Other"
+  for typing). Put your best guess from the CV first, marked "(from your CV)". Ask up to 4 questions per call.
+  Only if the tool isn't available, fall back to one short numbered message.
+- **Facts already in the CV** (name, email, phone, city): don't ask them one by one. Show one pre-filled card
+  ("Name: … · Email: … · Phone: … · Lives in: …") and ask a single question: "All correct?" with options
+  "Yes" / "Change something".
+- Never ask for something you can derive; say what you assumed instead ("I set your home region to UK").
+
+Round A, about them (one AskUserQuestion call after the confirm card):
+1–3. Name, email, phone, city: the pre-filled card above. The email must be the Gmail connected to Claude.
+4. Right to work: options built from their citizenship/location, e.g. "UK only", "UK + EU", "Need sponsorship
+   everywhere except <country>" (multi-select of regions works well).
+5. Notice period: "Available now", "2 weeks", "1 month", "3 months".
+Round B, about the search (one call):
+6. Roles: 3–4 title sets suggested from the CV as options (multi-select), e.g. "Senior Data Analyst",
+   "Analytics Manager"; "Other" for their own.
+7. Places: options from their city/region plus "Remote" and "Open to relocating" (multi-select).
+8. Salary floor: 3 bands around the market rate for their level and city, plus "Prefer not to say" (forms then say
+   "negotiable"). State the currency.
+9. CV style (its own call, after previews): build previews from THEIR CV (`python scripts/render_cv.py
+   profile/master-cv.yaml "cv-styles/<Name> - <style>.docx" <style>` for classic, modern and compact), then
+   `python scripts/to_pdf.py --styles` (it installs LibreOffice on a cloud machine if needed; if that fails, use the
+   .docx). Upload the PDFs to their Drive "Rolewise" folder (step 3) and give one link per style; on a laptop, also
+   open them. Options: Classic / Modern (Recommended) / Compact, each with a one-line description.
+10. Anything to avoid (companies, industries)? Optional: options "Nothing for now" / "Yes, let me list them".
 
 Write `profile/user.yaml`, `profile/answers.yaml` and `profile/preferences.yaml` from `profile/templates/`, filling
 these answers in and keeping every default. Copy `profile/templates/cover-letter-guide.md` to `profile/` if missing.
