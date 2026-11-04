@@ -308,23 +308,19 @@
   ui.querySelector("#jf-tab").onclick = async () => {
     const opening = panel.style.display === "none";
     open(opening);
-    if (opening && !body.innerHTML) body.innerHTML = "Click Fill to complete this form." + await showQueue();
+    if (opening && !body.innerHTML) body.innerHTML = "Click Fill to complete this form.";
   };
   ui.querySelector("#jf-min").onclick = () => open(false);
   const show = html => { open(true); body.innerHTML = html; };
-  // The Ready queue: every job Rolewise has prepared, one click each, so a whole batch is done in one sitting.
-  async function showQueue(currentId) {
-    try {
-      const index = await loadIndex(), done = await submittedIds();
-      const ready = index.filter(k => k.status === "ready" && k.id !== currentId && k.urls.length && !done.includes(k.id))
-        .sort((a, b) => (b.fit || 0) - (a.fit || 0));
-      if (!ready.length) return "";
-      return `<div style="margin-top:12px;border-top:1px solid #dde3ec;padding-top:8px"><b>Next in your queue (${ready.length})</b>` +
-        ready.slice(0, 5).map(k => `<div style="margin-top:6px"><a href="${k.urls[0]}#rolewise-fill" style="color:#1d3461;font-weight:600;text-decoration:none">→ ${k.label}</a>${k.fit ? ` <span style="color:#5b6880;font-size:12px">fit ${k.fit}</span>` : ""}</div>`).join("") +
-        `</div>`;
-    } catch (e) { return ""; }
-  }
+  // One fill at a time: while filling, the button is visibly disabled and clicks are ignored.
+  let busy = false;
+  const setBusy = v => {
+    busy = v; btn.disabled = v;
+    btn.style.opacity = v ? "0.5" : "1"; btn.style.cursor = v ? "not-allowed" : "pointer";
+    if (v) btn.textContent = "Filling…"; else refreshState();
+  };
   const refreshState = () => {
+    if (busy) return;
     if (alreadyFilled()) { btn.textContent = "Refill"; body.innerHTML ||= "Already filled on this page. Review and submit, or refill."; }
     else { btn.textContent = "Fill with Rolewise"; }
   };
@@ -347,23 +343,22 @@
   }
 
   async function run(kitId) {
-    show("Filling…");
-    btn.disabled = true;
+    show("Filling… this takes about 10 seconds.");
+    setBusy(true);
     await loadRules();
     const kit = await (await fetch(chrome.runtime.getURL(`kits/${kitId}.json`))).json();
     const r = await fill(kit);
     try { sessionStorage.setItem(filledKey(), "1"); sessionStorage.setItem("rolewise:lastKit", kitId); } catch (e) {}
-    btn.disabled = false;
-    refreshState();
+    setBusy(false);
     show(`<b>${kit.company} · ${kit.title}</b>
       <div style="margin:6px 0;color:#1f7a4d">Filled ${r.filled.length}</div>
       <div style="font-size:12px;color:#5b6880">${r.filled.map(x => "✓ " + x.slice(0, 70)).join("<br>")}</div>
       ${r.missing.length ? `<div style="margin-top:8px;color:#9a5b00"><b>Needs you (${r.missing.length}, outlined in yellow)</b><br>${r.missing.map(x => "• " + x.slice(0, 80)).join("<br>")}</div>` : ""}
-      <div style="margin-top:10px;font-weight:600">Review, click the form's Submit, and type any code the site emails you.</div>
-      ${await showQueue(kit.id)}`);
+      <div style="margin-top:10px;font-weight:600">Review, click the form's Submit, and type any code the site emails you.</div>`);
   }
 
   btn.onclick = async () => {
+    if (busy) return;
     if (alreadyFilled() && !confirm("Rolewise already filled this form. Fill it again?")) return;
     try {
       const index = await loadIndex();
@@ -373,6 +368,7 @@
         <button id="jf-go" style="margin-top:8px;width:100%;background:#fff;color:#1d3461;border:1px solid #1d3461;border-radius:8px;padding:8px">Fill this job</button>`);
       body.querySelector("#jf-go").onclick = () => run(body.querySelector("#jf-pick").value);
     } catch (e) {
+      setBusy(false);
       show(`Couldn't load kits: ${e.message}. Run <code>scripts/build_kits.py</code>.`);
     }
   };
