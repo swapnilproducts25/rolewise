@@ -242,6 +242,16 @@
     if (DONE_TEXT.test((document.body && document.body.innerText || "").slice(0, 4000))) return false;
     return !!document.querySelector("input[type=file], #first_name, input[name*=email i], input[autocomplete=email], input[type=email]");
   }
+  function markSubmitted() {
+    let id = null;
+    try { id = sessionStorage.getItem("rolewise:lastKit"); } catch (e) {}
+    if (!id || !DONE_TEXT.test((document.body && document.body.innerText || "").slice(0, 4000))) return;
+    try { sessionStorage.removeItem("rolewise:lastKit"); } catch (e) {}
+    chrome.storage.local.get({ submitted: [] }, d => {
+      if (!d.submitted.includes(id)) chrome.storage.local.set({ submitted: d.submitted.concat(id) });
+    });
+  }
+  const submittedIds = () => new Promise(r => chrome.storage.local.get({ submitted: [] }, d => r(d.submitted)));
   const filledKey = () => "rolewise:filled:" + location.href.split("#")[0];
   const alreadyFilled = () => { try { return sessionStorage.getItem(filledKey()) === "1"; } catch (e) { return false; } };
 
@@ -267,8 +277,8 @@
   // The Ready queue: every job Rolewise has prepared, one click each, so a whole batch is done in one sitting.
   async function showQueue(currentId) {
     try {
-      const index = await loadIndex();
-      const ready = index.filter(k => k.status === "ready" && k.id !== currentId && k.urls.length)
+      const index = await loadIndex(), done = await submittedIds();
+      const ready = index.filter(k => k.status === "ready" && k.id !== currentId && k.urls.length && !done.includes(k.id))
         .sort((a, b) => (b.fit || 0) - (a.fit || 0));
       if (!ready.length) return "";
       return `<div style="margin-top:12px;border-top:1px solid #dde3ec;padding-top:8px"><b>Next in your queue (${ready.length})</b>` +
@@ -289,6 +299,8 @@
       const want = isApplicationPage();
       if (want && !ui.isConnected) { document.body.appendChild(ui); refreshState(); }
       if (!want && ui.isConnected) ui.remove();
+      // A confirmation page after Rolewise filled a form here: drop that job from the Ready queue.
+      if (!want) markSubmitted();
       // Opened from the briefing's "Open & fill" button (#rolewise-fill): fill once, automatically.
       if (want && !autoDone && /(rolewise|jobify)-fill/.test(location.hash) && !alreadyFilled()) { autoDone = true; btn.click(); }
     };
@@ -302,7 +314,7 @@
     await loadRules();
     const kit = await (await fetch(chrome.runtime.getURL(`kits/${kitId}.json`))).json();
     const r = await fill(kit);
-    try { sessionStorage.setItem(filledKey(), "1"); } catch (e) {}
+    try { sessionStorage.setItem(filledKey(), "1"); sessionStorage.setItem("rolewise:lastKit", kitId); } catch (e) {}
     btn.disabled = false;
     refreshState();
     show(`<b>${kit.company} · ${kit.title}</b>

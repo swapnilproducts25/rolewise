@@ -86,7 +86,7 @@ RULES = [
     [r"discipline|field of study|major", "discipline"],
     [r"location \(city\)|^city\b", "city"],
     [r"current (or (most recent|previous) )?(company|employer)|(most recent|previous) (company|employer)|current organi[sz]ation", "current_company"],
-    [r"current (or previous )?(job )?title|current (role|position)", "current_title"],
+    [r"(current|most recent|latest|previous)( or (most recent|previous|latest))? (job )?(title|role|position)", "current_title"],
     [r"salary|compensation|pay expectation|expected (pay|package)", "salary"],
     [r"notice period", "notice"],
     [r"start date|when can you start|earliest (start|availability)|availability", "start_date"],
@@ -208,12 +208,13 @@ def main(ids):
         kit = build(j, profile)
         print(f"{'kit' if kit else 'no CV, skipped'}: {j['id']}")
     index = []
+    status = {j["id"]: j["status"] for j in jobs}   # the tracker is the truth: applied/skipped jobs leave the queue
     for path in sorted(KITS.glob("*.json")):
         if path.name in ("index.json", "rules.json"):
             continue
         k = json.loads(path.read_text(encoding="utf-8"))
         index.append({"id": k["id"], "label": f"{k['company']} · {k['title']}", "urls": k["urls"],
-                      "status": k.get("status"), "fit": k.get("fit")})
+                      "status": status.get(k["id"], k.get("status")), "fit": k.get("fit")})
     (KITS / "index.json").write_text(json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8")
     (KITS / "rules.json").write_text(json.dumps(RULES, indent=1, ensure_ascii=False), encoding="utf-8")
     print(f"index: {len(index)} kits")
