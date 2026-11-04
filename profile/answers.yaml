@@ -1,0 +1,45 @@
+# Standard answers for application forms (written by /onboard; edit with /profile).
+# Anything a form asks that isn't here is an "open item": Rolewise asks you once, then saves it here.
+contact:
+  full_name: ""               # Q1
+  email: ""                   # Q1
+  phone: ""                   # Q2 (international format)
+  phone_by_region: {}         # optional, e.g. {eu: "+353 ...", uae: "+971 ..."}
+  linkedin: ""                # Q10
+  location: ""                # Q3: where you live now, e.g. "London, UK"
+  location_relocating: "<current location> (relocating to <city>)"   # used when applying abroad
+  websites: []                # Q10 (optional)
+
+work_authorization:           # Q4
+  citizenships: []            # e.g. ["Ireland"]
+  residency: ""               # e.g. "UAE Golden Visa" (optional)
+  authorized_without_sponsorship: []   # regions: e.g. ["EU", "UK", "UAE"]
+  needs_sponsorship_elsewhere: true
+  willing_to_relocate: "Yes"  # from Q6
+
+availability:                 # Q8
+  notice_period: ""           # e.g. "Immediately available" / "1 month"
+  start_date: ""
+
+compensation:                 # Q7
+  current_salary: "Prefer not to disclose"
+  expected_by_region: {}      # e.g. {eu: "EUR 90,000/year or above", uae: "AED 35,000/month or above"}
+  fallback: "Negotiable, aligned with market rate for the role and level"
+
+diversity_questions: "Prefer not to say"
+
+standard_form_answers:        # sensible defaults; change any with /profile
+  hybrid_or_office_days: "Yes"
+  previously_worked_at_company: "No"   # unless it's a past employer in your CV
+  how_did_you_hear: "Job Board"
+  email_me_future_openings: "Yes"
+  optional_free_text: "skip"
+  standard_consents: "Yes"             # privacy, data retention, interview recording
+  remote_work_preference: "No"
+  whatsapp_opt_in: "Yes"
+
+citizenship:
+  export_control:
+    sanctioned_country_citizen_or_resident: "No"
+    additional_citizenship_or_residency: "N/A"
+    first_obtained_country: "N/A"

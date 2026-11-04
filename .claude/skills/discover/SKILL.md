@@ -1,0 +1,52 @@
+---
+name: discover
+description: Find new job openings matching the user's profile across LinkedIn, job boards and company career pages, score fit, dedupe against the tracker and produce a shortlist. Use for "find jobs", "any new roles", or as part of /daily.
+---
+
+# Discover jobs
+
+Read first: `profile/preferences.yaml`, `profile/master-cv.yaml` (skim), and `scripts/tracker.py list` to know what's already tracked.
+
+## 1. Search (aim for 20–40 fresh candidates, posted in the last ~7 days)
+
+**First, LinkedIn job alerts from Gmail (safe: no LinkedIn browsing):** search `from:jobalerts-noreply@linkedin.com newer_than:3d -label:rolewise-done`. Each alert lists roles (title, company, location, a `linkedin.com/comm/jobs/view/<id>` link). For each: normalise the link to `https://www.linkedin.com/jobs/view/<id>`, skip if `tracker.py exists --url` finds it, score fit as below, and add it (`--source linkedin-alert`). Label the alert `rolewise-done`. Saved searches are set up by the user on LinkedIn (see coach notes); if no alerts arrive for 3 days, put a one-line reminder in the briefing.
+
+**Then company career pages (best channel):** `.venv/Scripts/python scripts/ats_scan.py scan` polls public Greenhouse, Lever and Ashby feeds for every company in `profile/target-companies.yaml`. Results are filtered by `profile/preferences.yaml` (a `scan:` block if present, else `target_titles` and `locations`) and to jobs not already tracked. With no `profile/target-companies.yaml` yet, offer to build one from the user's target and `market_signal` companies. Add new companies with `ats_scan.py discover <slug> ...`. Fetch a job's description with `ats_scan.py jd <tracker id>`. These roles are often fresher and less crowded than LinkedIn. Then supplement with LinkedIn and the job boards below.
+Use the Chrome extension (the user's logged-in session) and WebSearch. Rotate sources across days.
+
+**LinkedIn: what works (learned 2026-10-29):**
+- The Chrome tab Claude uses is a *hidden* tab, so LinkedIn's lazy-loaded result lists don't render past ~7 cards. Instead, in a linkedin.com tab, `fetch()` the guest search endpoint `/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=..&location=..&f_TPR=r604800[&f_WT=2]&start=0|10|20`, and parse with **regex, not DOMParser** (LinkedIn's Trusted Types CSP blocks DOMParser). Pause about 1.5s between calls. Remote = `&f_WT=2`.
+- Tool output truncates around 1,000 characters, so keep results in a `window.` variable and print them in slices. Page navigations wipe `window` state.
+- Full job descriptions: `.venv/Scripts/python scripts/fetch_jd.py <dir> <job_id> ...` (public endpoint, 3s spacing; on HTTP 429 wait and retry later).
+- Already applied? Check LinkedIn's Job tracker (`https://www.linkedin.com/jobs-tracker/?stage=applied`, 10 per page, click "Next") and collect `/jobs/view/<id>` links. Postings ≤7 days old only need the first 2–4 pages checked.
+
+**LinkedIn Jobs** (human pace, ≤40 job views/day; see CLAUDE.md):
+- `https://www.linkedin.com/jobs/search/?keywords=<title>&location=<place>&f_TPR=r604800` (past week; `r86400` = 24h)
+- Titles: `target_titles` from preferences (plus `adjacent_roles.examples` if enabled)
+- Places: the `locations` in preferences (names and places); remote: add `&f_WT=2`
+- Prefer reading the results list + job detail pane; note applicant count and "Easy Apply".
+
+**Job boards:** `boards` in preferences. If empty, pick the 3–5 strongest boards for the user's field and places (e.g. Indeed and the national board; field-specific ones such as Dice for tech, NHS Jobs for UK health, eFinancialCareers for finance; WeWorkRemotely/RemoteOK for remote) and save them to `boards`.
+**ATS boards via WebSearch** (high signal, often not on LinkedIn):
+`site:boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com "<target title>" (<place> OR <place> OR Remote)`
+**Target companies:** check career pages of every company in `preferences.target_companies`.
+**Market signal:** companies in `market_signal` (preferences) are actively hiring in the user's market — search their career pages too. Add new ones as you spot them hiring repeatedly.
+
+## 2. Filter and score
+- **Matching policy:** follow `fit_scoring.thresholds.matching_policy` in preferences.yaml. Be inclusive. Gaps lower the score, and only hard blockers skip a role.
+- Skip: titles in `exclude.keywords`, excluded companies, duplicates (`tracker.py exists --url ... ` / `--company --title`), roles needing a language the user doesn't list (e.g. "fluent German required"), suspected scams (see CLAUDE.md rule 6).
+- Read the full JD for each survivor. Score with `fit_scoring` weights from preferences (0–100). Be honest: a director role at a 2000-person org needing 5+ yrs people management is a stretch — say so but don't auto-reject; flag as `stretch`.
+- Work authorization: check `answers.yaml` / `preferences.yaml` for where the user can work without sponsorship; elsewhere, still include but note "sponsorship?".
+
+## 3. Record
+For each job with score ≥ `thresholds.shortlist`:
+```
+.venv/Scripts/python scripts/tracker.py add --company "..." --title "..." --location "..." --work-mode hybrid \
+  --url "<canonical job URL>" --source linkedin --fit 78 --summary "<1 line: why it fits / main gap>" --status shortlisted
+```
+Save the JD to `applications/<id>/jd.md` (title, company, location, URL, date seen, full text). Jobs below threshold: don't add (keep the tracker clean) unless notable.
+
+## 4. Report to the user
+A compact table sorted by fit: fit | company | role | location/mode | posted | applicants | Easy Apply? | one-line why/gap.
+Mark ≥ `priority` jobs with ★ and suggest: apply today + whether a referral is worth seeking (check if the user has 1st/2nd-degree connections there — only look, never message).
+End with: "Which ones should I prepare? (e.g. 'all ★', '1,3,5', 'all')".

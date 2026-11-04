@@ -1,0 +1,26 @@
+# What Rolewise searches for (written by /onboard; edit with /profile).
+target_titles: []             # Q5, e.g. [Senior Product Manager, Lead Product Manager]
+seniority: ""                 # Q5, e.g. "senior to director"
+locations: []                 # Q6, e.g. [{name: UK, places: [London], work_modes: [hybrid, remote]}]
+remote_ok: true               # Q6
+relocation: true              # Q6
+domains:
+  strong_fit: []              # optional: added from your CV
+  open_to: [anything with a strong product org]
+compensation_floor: {}        # Q7 (per region)
+exclude:
+  companies: []
+  keywords: [intern, junior]
+target_companies: []          # optional: companies to watch daily (profile/target-companies.yaml)
+fit_scoring:
+  role_and_level_match: 25
+  skills_and_experience_match: 30
+  domain_bonus: 15
+  location_and_work_auth_feasibility: 15
+  company_quality_and_momentum: 10
+  freshness_and_competition: 5
+  thresholds:
+    shortlist: 50
+daily_caps:
+  applications: 10
+  linkedin_job_views: 40

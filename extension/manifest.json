@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Rolewise Fill",
+  "version": "0.1.0",
+  "description": "Fills job application forms from Rolewise kits (CV, cover letter, answers). You review and click Submit yourself.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://job-boards.greenhouse.io/*",
+        "https://boards.greenhouse.io/*",
+        "https://jobs.lever.co/*",
+        "https://jobs.ashbyhq.com/*",
+        "https://apply.workable.com/*",
+        "https://jobs.smartrecruiters.com/*",
+        "https://*.homerun.co/*"
+      ],
+      "js": ["content.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://job-boards.greenhouse.io/*",
+        "https://boards.greenhouse.io/*",
+        "https://jobs.lever.co/*",
+        "https://jobs.ashbyhq.com/*",
+        "https://apply.workable.com/*",
+        "https://jobs.smartrecruiters.com/*",
+        "https://*.homerun.co/*"
+      ],
+      "js": ["page.js"],
+      "world": "MAIN",
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["kits/*", "kits/files/*/*"],
+      "matches": [
+        "https://job-boards.greenhouse.io/*",
+        "https://boards.greenhouse.io/*",
+        "https://jobs.lever.co/*",
+        "https://jobs.ashbyhq.com/*",
+        "https://apply.workable.com/*",
+        "https://jobs.smartrecruiters.com/*",
+        "https://*.homerun.co/*"
+      ]
+    }
+  ]
+}

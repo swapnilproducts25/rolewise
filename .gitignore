@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+# Local-only
+logs/
+.claude/settings.local.json
+~$*.docx
+
+# Generated apply kits (personal data + CV copies); rebuild with scripts/build_kits.py
+extension/kits/
+
+# LinkedIn connections export: other people's details, laptop only
+profile/connections*.csv
+
+# Pilot builds (scripts/make_pilot.py output)
+pilot/dist/

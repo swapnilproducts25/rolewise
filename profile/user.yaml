@@ -1,0 +1,13 @@
+# Who this Rolewise install belongs to (written by /onboard; change anything with /profile).
+name: ""                      # Q1
+first_name: ""
+email: ""                     # Q1: the briefing goes here; your button taps come from here
+file_prefix: ""               # defaults to name: "<prefix> - CV - <Company>.pdf"
+home_region: ""               # derived from Q3: uae | eu | uk | us | other
+cv_layout: modern             # Q9: classic | modern | compact (or "template" for your own Word file)
+run_mode: cloud               # cloud (default: claude.ai/code + a daily routine) | laptop (Claude Code on your computer)
+fill_addon: false             # true once Rolewise Fill is installed on a laptop
+drive_folder_id: ""           # created by /onboard (a private "Rolewise" folder in your Drive)
+dashboard_url: ""             # optional
+github_repo: ""               # your private copy, e.g. yourname/rolewise
+timezone: ""                  # e.g. Europe/London

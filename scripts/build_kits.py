@@ -1,0 +1,223 @@
+"""Build apply kits for the "Rolewise Fill" Chrome add-on (extension/).
+
+Usage: .venv/Scripts/python scripts/build_kits.py            # every job with a CV (shortlisted..ready)
+       .venv/Scripts/python scripts/build_kits.py <job id> ...
+
+For each job it writes extension/kits/<id>.json and copies the CV + cover letter into extension/kits/files/<id>/,
+then rewrites extension/kits/index.json (url -> kit) so the add-on can match the open form to its job.
+Answers come from profile/answers.yaml; a job can override or add questions in applications/<id>/kit.yaml:
+  answers:            # same keys as below, e.g. salary: "100,000-110,000 EUR"
+  questions:          # free-text or choice questions specific to this form
+    - match: ["why", "interest"]      # label keywords (all must appear, case-insensitive)
+      value: "..."
+"""
+import json
+import re
+import shutil
+import sys
+from pathlib import Path
+
+import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from userconf import USER, current_role, disciplines, education, file_glob  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent
+EXT = ROOT / "extension"
+KITS = EXT / "kits"
+ACTIVE = {"shortlisted", "preparing", "ready"}
+REGION_WORDS = {   # job location words -> region key (matches user.yaml home_region and answers.yaml per-region keys)
+    "uae": ("uae", "dubai", "abu dhabi", "sharjah", "united arab emirates"),
+    "uk": ("london", "united kingdom", "uk", "england", "scotland", "wales", "manchester", "edinburgh", "bristol"),
+    "us": ("united states", "usa", "new york", "san francisco", "seattle", "boston", "chicago", "austin"),
+    "in": ("india", "bangalore", "bengaluru", "mumbai", "pune", "delhi", "gurgaon", "gurugram", "hyderabad"),
+    "eu": ("ireland", "dublin", "germany", "berlin", "munich", "netherlands", "amsterdam", "france", "paris", "spain",
+           "madrid", "barcelona", "portugal", "lisbon", "sweden", "denmark", "finland", "belgium", "austria",
+           "italy", "poland", "europe", "emea"),
+}
+HOME = USER.get("home_region") or "other"
+
+
+def region_of(job):
+    if job.get("region"):
+        return job["region"]
+    loc = (job.get("location") or "").lower()
+    for region, words in REGION_WORDS.items():
+        if any(re.search(r"\b" + re.escape(w) + r"\b", loc) for w in words):
+            return region
+    return HOME   # remote / unknown: answer as the user is today
+
+
+def city_of(job):
+    loc = (job.get("location") or "").split(",")[0].strip()
+    return loc or "the role's city"
+
+
+# Label pattern (JS regex, matched on the lower-cased label) -> answer key. Order matters: specific first.
+# Written to extension/kits/rules.json, which the add-on reads on every fill (no extension reload needed).
+RULES = [
+    [r"preferred (first )?name", None],
+    [r"^country$|country code", None],   # phone-country picker; it sets itself from the phone number
+    [r"first\s*name|given name", "first_name"],
+    [r"last\s*name|surname|family name", "last_name"],
+    [r"email me|future (job )?openings|job alerts|keep me (updated|informed)", "future_emails"],
+    [r"whatsapp", "whatsapp"],
+    [r"\bsms\b|text messages", None],
+    [r"e-?mail", "email"],
+    [r"phone|mobile", "phone"],
+    [r"linkedin", "linkedin"],
+    [r"github", None],
+    [r"website|portfolio|personal site", "website"],
+    [r"iran|cuba|north korea|sanction", "export_sanctioned"],
+    [r"additional citizenship", "export_additional"],
+    [r"citizenship.*first|first.*citizenship", "export_first"],
+    [r"gender|ethnic|race|sexual orientation|transgender|disabilit|veteran|neurodiver|household earner|pronoun", "diversity"],
+    [r"brighthire|record(ed|ing)? (the |our |your )?(interview|conversation|call)|interview recording", "recording_consent"],
+    [r"sponsor", "sponsorship"],
+    [r"authori[sz]ed to work|right to work|eligible to work|legally (able|permitted) to work|work permit", "authorised"],
+    [r"relocat", "relocate"],
+    [r"remote location|work remotely|remote work|fully remote", "remote"],
+    [r"hybrid|in-?office|on-?site|office location|days per week", "hybrid"],
+    [r"previously (worked|been employed)|former employee|worked (for|at) .{0,40}before|ever worked|ever been employed|employed by", "previously_worked"],
+    [r"how did you (hear|find|learn)|where did you (hear|find)|source", "heard"],
+    [r"country (where|in which) you (currently )?reside|country of residence|country you live", "residence_country"],
+    [r"^school\b|university|institution", "school"],
+    [r"^degree\b", "degree"],
+    [r"discipline|field of study|major", "discipline"],
+    [r"location \(city\)|^city\b", "city"],
+    [r"current (or (most recent|previous) )?(company|employer)|(most recent|previous) (company|employer)|current organi[sz]ation", "current_company"],
+    [r"current (or previous )?(job )?title|current (role|position)", "current_title"],
+    [r"salary|compensation|pay expectation|expected (pay|package)", "salary"],
+    [r"notice period", "notice"],
+    [r"start date|when can you start|earliest (start|availability)|availability", "start_date"],
+    [r"current location|where are you (currently )?(based|located)|^location\b|city of residence", "location"],
+    [r"full name|^name\b|your name", "full_name"],
+]
+
+COUNTRY_ALIASES = [
+    (("dublin", "ireland"), ["Ireland"]),
+    (("london", "england", "united kingdom", "uk"), ["UK", "United Kingdom"]),
+    (("berlin", "cologne", "munich", "germany"), ["Germany"]),
+    (("amsterdam", "netherlands"), ["The Netherlands", "Netherlands"]),
+    (("paris", "france"), ["France"]),
+    (("zurich", "switzerland"), ["Switzerland"]),
+    (("dubai", "abu dhabi", "sharjah", "uae", "united arab emirates"), ["UAE", "United Arab Emirates"]),
+    (("spain", "madrid", "barcelona"), ["Spain"]),
+    (("portugal", "lisbon"), ["Portugal"]),
+    (("united states", "usa", "new york", "san francisco", "seattle", "boston"), ["United States", "USA"]),
+    (("india", "bangalore", "bengaluru", "mumbai", "pune", "delhi", "hyderabad"), ["India"]),
+    (("canada", "toronto", "vancouver"), ["Canada"]),
+    (("australia", "sydney", "melbourne"), ["Australia"]),
+    (("singapore",), ["Singapore"]),
+    (("saudi", "riyadh", "jeddah"), ["Saudi Arabia"]),
+]
+
+
+def job_country(job):
+    loc = (job.get("location") or "").lower()
+    for words, names in COUNTRY_ALIASES:
+        if any(w in loc for w in words):
+            return names
+    return []
+
+
+def base_answers(profile, job):
+    c, w = profile["contact"], profile["work_authorization"]
+    comp, avail = profile.get("compensation", {}), profile.get("availability", {})
+    std = profile.get("standard_form_answers", {})
+    exp = profile.get("citizenship", {}).get("export_control", {})
+    region = region_of(job)
+    home = region == HOME
+
+    def per_region(by_region, src, key, default):
+        """Per-region value: the `*_by_region` map first, then older `<key>_<region>` fields (UK falls back to EU)."""
+        keys = [f"{key}_{region}"] + ([f"{key}_eu"] if region == "uk" else [])
+        return (by_region or {}).get(region) or next((src[k] for k in keys if src.get(k)), None) or default
+
+    first, last = (c["full_name"].split(" ", 1) + [""])[:2]
+    here = c.get("location", "")
+    away = c.get("location_relocating") or c.get("location_eu") or "<current location> (relocating to <city>)"
+    location = here if home else away.replace("<current location>", here).replace("<city>", city_of(job))
+    phone = c.get("phone", "") if home else per_region(c.get("phone_by_region"), c, "phone", c.get("phone", ""))
+    salary = per_region(comp.get("expected_by_region"), comp, "expected_salary", comp.get("fallback", ""))
+    salary = re.sub(r"\s*\(.*?\)", "", salary.split("if a number is required:")[-1]).strip() or "Negotiable"
+    parts = [p.strip() for p in here.split(",") if p.strip()]
+    country = job_country({"location": here}) or parts[-1:]
+    return {
+        "first_name": first, "last_name": last, "full_name": c["full_name"], "email": c["email"],
+        "phone": phone,
+        "linkedin": c.get("linkedin", ""), "website": (c.get("websites") or [""])[0], "location": location,
+        "current_company": current_role()[0], "current_title": current_role()[1],
+        "city": parts[:1], "residence_country": country,
+        # education from master-cv.yaml (highest first)
+        "school": education()[0],
+        "degree": education()[1],
+        "job_country": job_country(job),
+        "discipline": disciplines(),
+        "salary": salary, "notice": avail.get("notice_period", "Immediately available"),
+        "start_date": avail.get("start_date", "Immediately"),
+        # choice answers: list of option prefixes to try, in order
+        "authorised": ["I am authorised", "Yes"], "sponsorship": ["No"], "relocate": ["Yes"],
+        "hybrid": ["Yes"], "previously_worked": ["No"],
+        "heard": [std.get("how_did_you_hear", "Job Board"), "Job Board", "Company website", "LinkedIn", "Other"],
+        "future_emails": ["Yes"],
+        "whatsapp": [std.get("whatsapp_opt_in", "Yes")], "remote": [std.get("remote_work_preference", "No")],
+        "recording_consent": ["Yes", "I consent", "I agree", "I acknowledge"], "location_choice": [std.get("location_dropdown_no_uae_option", "EMEA - Other"), "Other"],
+        "export_sanctioned": [exp.get("sanctioned_country_citizen_or_resident", "No")],
+        "export_additional": ["N/A"], "export_first": ["N/A"],
+        "diversity": ["I don't wish", "Prefer not", "Decline", "I do not wish"],
+    }
+
+
+def build(job, profile):
+    folder = ROOT / "applications" / job["id"]
+    files = {}
+    for kind, pattern in (("cv", file_glob("CV")), ("cover_letter", file_glob("Cover Letter"))):
+        found = sorted(p for p in folder.glob(pattern) if p.suffix.lower() in (".pdf", ".docx"))
+        pdf = [p for p in found if p.suffix.lower() == ".pdf"]
+        pick = (pdf or found or [None])[0]
+        if pick:
+            dest = KITS / "files" / job["id"] / pick.name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(pick, dest)
+            files[kind] = f"kits/files/{job['id']}/{pick.name}"
+    if "cv" not in files:
+        return None
+    answers = base_answers(profile, job)
+    questions = []
+    extra = folder / "kit.yaml"
+    if extra.exists():
+        override = yaml.safe_load(extra.read_text(encoding="utf-8")) or {}
+        answers.update(override.get("answers") or {})
+        questions = override.get("questions") or []
+    kit = {"id": job["id"], "company": job["company"], "title": job["title"], "status": job["status"],
+           "fit": job.get("fit_score"),
+           "urls": [u for u in (job.get("apply_url"), job.get("url")) if u],
+           "files": files, "answers": answers, "questions": questions}
+    (KITS / f"{job['id']}.json").write_text(json.dumps(kit, indent=2, ensure_ascii=False), encoding="utf-8")
+    return kit
+
+
+def main(ids):
+    sys.stdout.reconfigure(encoding="utf-8")
+    profile = yaml.safe_load((ROOT / "profile" / "answers.yaml").read_text(encoding="utf-8"))
+    jobs = json.loads((ROOT / "tracker" / "applications.json").read_text(encoding="utf-8"))
+    KITS.mkdir(parents=True, exist_ok=True)
+    chosen = [j for j in jobs if (j["id"] in ids if ids else j["status"] in ACTIVE)]
+    for j in chosen:
+        kit = build(j, profile)
+        print(f"{'kit' if kit else 'no CV, skipped'}: {j['id']}")
+    index = []
+    for path in sorted(KITS.glob("*.json")):
+        if path.name in ("index.json", "rules.json"):
+            continue
+        k = json.loads(path.read_text(encoding="utf-8"))
+        index.append({"id": k["id"], "label": f"{k['company']} · {k['title']}", "urls": k["urls"],
+                      "status": k.get("status"), "fit": k.get("fit")})
+    (KITS / "index.json").write_text(json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8")
+    (KITS / "rules.json").write_text(json.dumps(RULES, indent=1, ensure_ascii=False), encoding="utf-8")
+    print(f"index: {len(index)} kits")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
