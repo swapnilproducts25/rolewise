@@ -73,8 +73,9 @@ RULES = [
     [r"citizenship.*first|first.*citizenship", "export_first"],
     [r"gender|ethnic|race|sexual orientation|transgender|disabilit|veteran|neurodiver|household earner|pronoun", "diversity"],
     [r"brighthire|record(ed|ing)? (the |our |your )?(interview|conversation|call)|interview recording", "recording_consent"],
-    [r"sponsor", "sponsorship"],
+    # "Are you authorised to work…?" first: its label often mentions sponsorship too ("we sponsor some roles").
     [r"authori[sz]ed to work|right to work|eligible to work|legally (able|permitted) to work|work permit", "authorised"],
+    [r"(require|need|will you).{0,60}sponsor|sponsorship (now|in the future)|visa sponsorship", "sponsorship"],
     [r"relocat", "relocate"],
     [r"remote location|work remotely|remote work|fully remote", "remote"],
     [r"hybrid|in-?office|on-?site|office location|days per week", "hybrid"],

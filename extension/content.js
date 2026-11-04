@@ -249,6 +249,7 @@
     }
     await attachFiles(kit, report);   // second pass: upload boxes that appeared while the form was being filled
     if (kit.files.cv && document.querySelector("input[type=file]") && !report.filled.some(f => f.startsWith("CV"))) report.missing.push("CV upload (attach it yourself)");
+    report.missing.push(...unanswered(controls));
     report.filled = [...new Set(report.filled)];
     report.missing = [...new Set(report.missing)].filter(m => m && !report.filled.includes(m));
     // Highlight what still needs the user.
@@ -256,6 +257,31 @@
     controls.filter(el => report.missing.includes(labelFor(el)) || report.missing.includes(labelFor(el.closest("fieldset") || el)))
       .forEach(el => { el.style.outline = "3px solid #e0a800"; el.setAttribute("data-rolewise-missing", "1"); });
     return report;
+  }
+
+  // After filling: every visible required question still empty (required attribute, aria-required, or a * in its
+  // label) is reported, so the panel never says "all done" while the form would refuse to submit.
+  function unanswered(controls) {
+    const starred = el => {
+      const box = el.closest("fieldset, .field, .application-question, [class*=field], [class*=question], li, .form-group");
+      const t = (el.labels && el.labels[0] ? el.labels[0].innerText : "") || (box ? (box.querySelector("label, legend") || {}).innerText || "" : "");
+      return /\*/.test(t);
+    };
+    const needed = el => el.required || el.getAttribute("aria-required") === "true" || starred(el);
+    const out = [], radios = new Set();
+    for (const el of controls) {
+      if (!el.isConnected || el.offsetParent === null || el.disabled) continue;
+      if (el.type === "radio") {
+        if (radios.has(el.name)) continue; radios.add(el.name);
+        const group = [...document.querySelectorAll(`input[type=radio][name="${CSS.escape(el.name)}"]`)];
+        if (!group.some(r => r.checked) && needed(el)) out.push(labelFor(el.closest("fieldset") || el));
+      } else if (el.getAttribute("role") === "combobox") {
+        const box = el.closest(".select__container, .select-shell, [class*=select]");
+        const has = box && box.querySelector("[class*=single-value], [class*=singleValue], [class*=multi-value], [class*=multiValue]");
+        if (!has && needed(el)) out.push(labelFor(el));
+      } else if (el.type !== "checkbox" && !el.value && needed(el)) out.push(labelFor(el));
+    }
+    return out.filter(Boolean);
   }
 
   async function loadIndex() {
@@ -319,11 +345,22 @@
     btn.style.opacity = v ? "0.5" : "1"; btn.style.cursor = v ? "not-allowed" : "pointer";
     if (v) btn.textContent = "Filling…"; else refreshState();
   };
+  const tab = ui.querySelector("#jf-tab");
+  const setTab = (text, colour) => { tab.textContent = text; tab.style.background = colour || "#1d3461"; };
   const refreshState = () => {
     if (busy) return;
-    if (alreadyFilled()) { btn.textContent = "Refill"; body.innerHTML ||= "Already filled on this page. Review and submit, or refill."; }
-    else { btn.textContent = "Fill with Rolewise"; }
+    btn.textContent = "Fill with Rolewise";
+    btn.style.display = alreadyFilled() ? "none" : "block";   // filled: the job now is to review and submit
+    if (alreadyFilled()) body.innerHTML ||= `Filled. Review the form and click its Submit button.${again}`;
   };
+  // A quiet link, not a button: refilling is rarely needed (e.g. the page reloaded and lost what was typed).
+  const again = `<div style="margin-top:10px;font-size:12px"><a href="#" data-rolewise-again style="color:#5b6880">Fill again</a></div>`;
+  body.addEventListener("click", e => {
+    if (!e.target.closest("[data-rolewise-again]")) return;
+    e.preventDefault(); btn.click();
+  });
+  let collapseTimer;
+  panel.addEventListener("mouseenter", () => clearTimeout(collapseTimer));
 
   // React sites (Greenhouse) re-render the whole document while hydrating and drop foreign nodes, so attach after
   // the page settles, re-attach if it disappears, and remove it once the page stops being an application form.
@@ -350,16 +387,27 @@
     const r = await fill(kit);
     try { sessionStorage.setItem(filledKey(), "1"); sessionStorage.setItem("rolewise:lastKit", kitId); } catch (e) {}
     setBusy(false);
-    show(`<b>${kit.company} · ${kit.title}</b>
-      <div style="margin:6px 0;color:#1f7a4d">Filled ${r.filled.length}</div>
-      <div style="font-size:12px;color:#5b6880">${r.filled.map(x => "✓ " + x.slice(0, 70)).join("<br>")}</div>
-      ${r.missing.length ? `<div style="margin-top:8px;color:#9a5b00"><b>Needs you (${r.missing.length}, outlined in yellow)</b><br>${r.missing.map(x => "• " + x.slice(0, 80)).join("<br>")}</div>` : ""}
-      <div style="margin-top:10px;font-weight:600">Review, click the form's Submit, and type any code the site emails you.</div>`);
+    const esc = x => String(x).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+    show(`<b>${esc(kit.company)} · ${esc(kit.title)}</b>
+      ${r.missing.length
+        ? `<div style="margin-top:8px;color:#9a5b00"><b>${r.missing.length} to answer yourself</b> (outlined in yellow)<br>${r.missing.map(x => "• " + esc(x.slice(0, 80))).join("<br>")}</div>`
+        : `<div style="margin-top:8px;color:#1f7a4d"><b>All ${r.filled.length} fields filled.</b></div>`}
+      <div style="margin-top:10px;font-weight:600">Review the form, then click its Submit button.</div>
+      <details style="margin-top:8px;font-size:12px;color:#5b6880"><summary style="cursor:pointer">What was filled</summary>${r.filled.map(x => "✓ " + esc(x.slice(0, 70))).join("<br>")}</details>
+      ${again}`);
+    // Get out of the way of the form's own Submit button: collapse to the edge tab, which keeps the status.
+    if (r.missing.length) {
+      setTab(`${r.missing.length} TO CHECK`, "#9a5b00");
+      const first = document.querySelector("[data-rolewise-missing]");
+      if (first) first.scrollIntoView({ block: "center", behavior: "smooth" });
+    } else setTab("FILLED ✓", "#1f7a4d");
+    clearTimeout(collapseTimer);
+    collapseTimer = setTimeout(() => open(false), r.missing.length ? 8000 : 5000);
   }
 
   btn.onclick = async () => {
     if (busy) return;
-    if (alreadyFilled() && !confirm("Rolewise already filled this form. Fill it again?")) return;
+    if (alreadyFilled() && !confirm("Fill this form again? Anything you typed may be overwritten.")) return;
     try {
       const index = await loadIndex();
       const kit = matchKit(index);
