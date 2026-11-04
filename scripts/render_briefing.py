@@ -20,8 +20,9 @@ JSON shape:
     {"title": "...", "detail": "...", "actions": [{"label": "Submit", "verb": "SUBMIT", "target": "job-id"},
                                                   {"label": "Open kit", "url": "https://..."}]}],
    "more": 4}],
- "dashboard_url": "https://..."}
+ "dashboard_url": "https://...", "first_briefing": false}
 """
+import datetime as dt
 import json
 import sys
 from html import escape
@@ -83,7 +84,7 @@ def render(data):
             if item.get("message"):
                 parts.append(f'<div style="margin-top:8px;padding:10px 12px;background-color:#f6f8fb;border-left:3px solid {NAVY};'
                              f'border-radius:6px;font-size:14px;white-space:pre-wrap">{escape(item["message"])}</div>'
-                             f'<div style="color:{MUTED};font-size:12px;margin-top:4px">Press and hold to copy, then paste it on LinkedIn.</div>')
+                             f'<div style="color:{MUTED};font-size:12px;margin-top:4px">Press and hold to copy.</div>')
             actions = item.get("actions", [])
             if actions:
                 parts.append(button_row(actions, date))
@@ -107,6 +108,14 @@ def render(data):
         parts.append(f'<div style="margin-top:16px;background:{SOFT};border-radius:8px;padding:8px 12px;font-size:14px">'
                      f'📊 {escape(stat)}</div>')
         text.append(stat)
+    # Users without the add-on get a short tip on the first briefing and on Mondays (not every day).
+    if not USER.get("fill_addon") and (data.get("first_briefing") or dt.date.fromisoformat(date).weekday() == 0):
+        tip = ("Have a laptop with Chrome? The free Rolewise Fill add-on fills application forms for you in seconds; "
+               "you just check and submit. Set it up once (5 min): open claude.ai/code on your laptop and say "
+               "\"set up Rolewise Fill\".")
+        parts.append(f'<div style="margin-top:12px;border:1px dashed {NAVY};border-radius:8px;padding:8px 12px;'
+                     f'font-size:14px">⚡ {escape(tip)}</div>')
+        text.append("Tip: " + tip)
     if data.get("dashboard_url"):
         parts.append(button_row([{"label": "Open dashboard", "url": data["dashboard_url"]}], date))
         text.append(f"Dashboard: {data['dashboard_url']}")

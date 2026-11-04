@@ -70,12 +70,12 @@ Close the round with: "That's all I need. You can change any of this any time: j
   (or `/SC ONLOGON` if they rarely leave it idle). macOS: `scripts/run_daily.sh` with a LaunchAgent (write the plist
   after they agree; they run `launchctl load …`).
 
-## 5. Optional: Rolewise Fill (only if they have a laptop with Chrome)
+## 5. Optional: Rolewise Fill (only if they have a laptop with Chrome; also run this part alone when a user says "set up Rolewise Fill")
 The add-on fills application forms. It needs this folder on the laptop: `git clone` their repo (or download it as a
 zip from GitHub), then `chrome://extensions` → Developer mode → Load unpacked → the `extension` folder, and run
 `python scripts/build_kits.py` (the laptop run does this daily). Set `fill_addon: true`. Skip it on phone-only setups.
 
 ## 6. First results
 Run the `discover` skill once (small: 10–15 roles), then render and send a first briefing to their email
-(`scripts/render_briefing.py`). Tell them what happens tomorrow and what they'll do: read the briefing, tap buttons,
+(`scripts/render_briefing.py`, with `"first_briefing": true` in the JSON so it includes the Rolewise Fill tip). Tell them what happens tomorrow and what they'll do: read the briefing, tap buttons,
 and apply (with Rolewise Fill, or by opening the job and uploading the CV from the Drive link). Point to `/profile`.
