@@ -15,7 +15,8 @@ Free and open source. Your data stays in your own accounts.
 - **Prepares you for interviews** and helps afterwards with debriefs, follow-ups and offer negotiation.
 - **Coaches you** each week: what's working and what to change.
 - Optional **Rolewise Fill** Chrome add-on (laptop): fills application forms on Greenhouse, Lever, Ashby,
-  Workable, SmartRecruiters and Homerun (most tested on Greenhouse so far). You check the form and click Submit.
+  Workable, SmartRecruiters and Homerun (most tested on Greenhouse so far). You check the form and click Submit. Setup currently needs the
+  Claude desktop app and Python on your laptop; a one-click Chrome Web Store version is planned.
 
 ## What you need
 - A Claude **Pro or Max** plan (claude.ai).

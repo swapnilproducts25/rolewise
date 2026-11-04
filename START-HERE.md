@@ -35,7 +35,8 @@ Change anything, any time, in plain words: open a session in claude.ai/code and 
 `/debrief <company>` after one, `/coach` for a weekly review.
 
 **Optional, if you have a laptop with Chrome:** the **Rolewise Fill** add-on fills application forms for you.
-Ask Rolewise "set up Rolewise Fill" and it walks you through it in about 5 minutes.
+It needs the Claude desktop app and Python on that laptop, so it suits people comfortable installing software
+(about 20 minutes). Ask Rolewise "set up Rolewise Fill" and it walks you through it. A one-click version is planned.
 
 ## What Rolewise never does
 - Submit an application, send an email or message anyone without your yes.

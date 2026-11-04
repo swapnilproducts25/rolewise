@@ -111,8 +111,8 @@ def render(data):
     # Users without the add-on get a short tip on the first briefing and on Mondays (not every day).
     if not USER.get("fill_addon") and (data.get("first_briefing") or dt.date.fromisoformat(date).weekday() == 0):
         tip = ("Have a laptop with Chrome? The free Rolewise Fill add-on fills application forms for you in seconds; "
-               "you just check and submit. Set it up once (5 min): open claude.ai/code on your laptop and say "
-               "\"set up Rolewise Fill\".")
+               "you just check and submit. Set it up once (about 20 min, needs the Claude desktop app): ask "
+               "Rolewise to \"set up Rolewise Fill\".")
         parts.append(f'<div style="margin-top:12px;border:1px dashed {NAVY};border-radius:8px;padding:8px 12px;'
                      f'font-size:14px">⚡ {escape(tip)}</div>')
         text.append("Tip: " + tip)
