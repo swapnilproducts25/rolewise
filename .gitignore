@@ -15,3 +15,8 @@ profile/connections*.csv
 
 # Pilot builds (scripts/make_pilot.py output)
 pilot/dist/
+
+# LinkedIn data export: personal data and other people's details, laptop only
+Complete_LinkedIn*/
+profile/linkedin/
+LinkedIn Zipped folders/

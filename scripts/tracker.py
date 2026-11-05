@@ -23,7 +23,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -67,6 +67,23 @@ def duplicate(jobs, url=None, company=None, title=None):
             return j
         if company and title and slug(j["company"]) == slug(company) and slug(j["title"]) == slug(title):
             return j
+    return None
+
+
+def applied_on_linkedin(url=None, company=None, title=None):
+    """A past LinkedIn application (tracker/linkedin-applied.json, from scripts/linkedin_import.py) for this job:
+    the same LinkedIn job id, or the same company and title within the last 6 months."""
+    path = TRACKER.parent / "linkedin-applied.json"
+    if not path.exists():
+        return None
+    m = re.search(r"/jobs/view/(\d+)", url or "")
+    recent = (date.today() - timedelta(days=183)).isoformat()
+    for a in json.loads(path.read_text(encoding="utf-8")):
+        if m and a.get("job_id") == m.group(1):
+            return a
+        if company and title and a.get("date", "") >= recent and slug(a.get("company", "")) == slug(company) \
+                and slug(a.get("title", "")) == slug(title):
+            return a
     return None
 
 
@@ -230,7 +247,9 @@ def main():
         cmd_update(a, jobs)
     elif a.cmd == "exists":
         dup = duplicate(jobs, a.url, a.company, a.title)
-        print(f"DUPLICATE {dup['id']} ({dup['status']})" if dup else "NEW")
+        past = None if dup else applied_on_linkedin(a.url, a.company, a.title)
+        print(f"DUPLICATE {dup['id']} ({dup['status']})" if dup
+              else f"APPLIED ON LINKEDIN {past['date']} ({past['company']} - {past['title']})" if past else "NEW")
     elif a.cmd == "show":
         print(json.dumps(find(jobs, a.id), indent=2, ensure_ascii=False))
     elif a.cmd == "list":

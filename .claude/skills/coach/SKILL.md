@@ -17,6 +17,9 @@ description: Weekly job-search review and coaching — funnel analysis, what's w
 - If something isn't working, start at most **one or two** new experiments: name the change, why the data suggests it, the metric and a check date 10–14 days out. Implement the change in the relevant file (preferences, CV angle defaults, cover-letter guide, discover filters) and note the commit.
 - Make sure every new application gets its experiment fields set (`--set cv_angle=… channel=… level=… region=… cover_letter=…`).
 
+- If `coach/linkedin-insights.md` exists (from `scripts/linkedin_import.py`), use it: application volume and agency share
+  before Rolewise, repeat applications, and profile-vs-CV differences to fix.
+
 ## 2. Recommend — max 5 actions for the week, ranked by impact
 Draw from (pick what the data supports, be specific):
 - **Referrals & network:** list 5–10 named people (former colleagues from the CV's employers, alumni of its schools, at target companies) to reconnect with; draft messages (send needs approval). Referrals usually beat cold applications several-fold.
