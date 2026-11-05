@@ -56,7 +56,7 @@ Round B, about the search (one call):
 Write `profile/user.yaml`, `profile/answers.yaml` and `profile/preferences.yaml` from `profile/templates/`, filling
 these answers in and keeping every default. Copy `profile/templates/cover-letter-guide.md` to `profile/` if missing.
 Draft `profile/story-bank.md` with 4–6 story rows from the CV (headline + best use), marked "draft: add detail after
-interviews". Create `tracker/applications.json` as `[]` if missing. Commit and push (web).
+interviews". Create `tracker/applications.json` as `[]` if missing. Also fill `answers.yaml` `experience_years` from the CV dates (whole years, rounded down; only topics a role clearly covers, e.g. the field, its domains, key methods), then show the list once and ask "Anything to change?". Leave out anything the CV can't back up. Commit and push (web).
 
 Close the round with: "That's all I need. You can change any of this any time: just say /profile."
 
