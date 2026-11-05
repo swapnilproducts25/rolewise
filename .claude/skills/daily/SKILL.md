@@ -36,18 +36,18 @@ description: Run Rolewise's daily loop — act on the user's button taps, check 
 9. **Chrome hygiene** — use one tab at a time (typing only reaches the focused tab) and close your tabs when done. If the tab reports `visibilityState: hidden` or screenshots time out, stop browser work and list it in the briefing as "needs Chrome in front".
 
 ## Briefing format (JSON → `scripts/render_briefing.py`)
-Sections in this order, **max 3 items each** (put the rest in `more`; they live on the dashboard). Skip empty sections.
-- `today` 🔥 — interviews, deadlines, follow-ups due, debriefs to capture
-- `referral` 🤝 — at most one card (step 5b)
-- `ready` ✅ — "one tap and Rolewise submits": each card names the one decision baked into its Submit button
-- `needs_you` 💬 — recruiter replies, answers only they can give
-- `new` 🔎 — next jobs to prepare (fit, why, and your recommendation in the detail)
-- `coach` 🎯 — one action, no buttons needed
-Buttons per card (primary first):
-- `ready` job on a supported form → **Open & fill** = `{"label":"Open & fill","url":"<apply_url or url>#rolewise-fill"}` (laptop: the form opens filled; they click Submit and types any emailed code) + **Skip**. Rolewise Fill is the ONLY apply path for these: no "Submit for me" (codes need the user anyway). On the phone they do nothing: the job waits in the add-on's Ready queue. Tracker moves to `applied` from the confirmation email (track step), so they never mark anything. Make sure the job has a kit first (`scripts/build_kits.py <id>`, after `scripts/to_pdf.py <id>`).
-- LinkedIn **Easy Apply** job (laptop add-on) → **Open & Easy Apply** = the job's LinkedIn url (kit built like any other) + **Skip**; the card's detail says "click Easy Apply, then Fill this step on each step". Years-of-experience questions are filled only from `answers.yaml` `experience_years`; ask the user once for any topic that keeps coming up.
-- `fill_addon: false` in `profile/user.yaml` (phone/web-only users): every `ready` job uses the next card instead of Open & fill, plus an item `message` with the form answers to paste (the job's `answers.md`, short).
-- LinkedIn / login portal job, or no add-on → **Open job** (url) + **CV (PDF)** = a Drive link: upload the job's CV (PDF if there is one, else the .docx) to the Rolewise Drive folder (`drive_folder_id` in `profile/user.yaml`; if empty, create a private "Rolewise" folder once and save its id there. Drive `create_file` with `disableConversionToGoogleType`, private, never shared) and link it + **Mark applied** (`ANSWER` with body "applied").
-- Interview just happened → **Debrief** (`ANSWER`, they type rough notes). Recruiter reply → **Draft reply** (`PREPARE`) / **Skip**. A drafted message → **Send** (`SEND <draft-id>`) / **Edit** (Gmail draft link).
-Rules: one-line titles (`Company · Role · City · fit N`), detail ≤ 2 short sentences with your recommendation, primary button first. Use the full tracker job id as `target`. A headline that says what matters most today. `stats` = applied this week, interviews, response rate (`tracker.py stats`).
-Also list in the briefing's first `today` item, or a "Done from your taps" item, what you did on their last taps; and in plain words anything that failed this run.
+Short and scannable: Rolewise has already prepared the jobs, so the email reports and only asks where it must.
+Headline: what matters most today in under 10 words (e.g. "7 ready to submit · ADRES decision due"). `stats` = applied
+this week, interviews, reply rate (`tracker.py stats`). Sections in this order; skip empty ones:
+- `today` 🔥 — cards (max 3): interviews, deadlines, follow-ups due, a debrief to capture, what you did on their last taps,
+  and in plain words anything that failed.
+- `needs_you` 💬 — cards (max 3): a drafted recruiter reply (**Send** = `SEND <draft-id>`, **Edit** = Gmail draft link),
+  a question only they can answer (**Answer** = `ANSWER <job>`).
+- `referral` 🤝 — at most one card (step 5b) with the drafted `message` and **Asked** (`ANSWER <job>` "asked <name>").
+- `ready` ✅ — title "Ready to submit (N)", a compact list (up to 10, rest in `more`): every `ready` job, best fit first.
+  Item: `title` "Company — Role", `detail` "City · fit N · how" where how is *fills itself* / *Easy Apply* / *company site:
+  Fill this page*, `actions` = [{"url": <posting url>}, {"verb": "SKIP", "target": <job id>}]. Section `note`: "Open them
+  from the Rolewise icon on your laptop." (`fill_addon: false`: note = "Open each one and upload the CV from its link",
+  and add each job's CV Drive link as the url.)
+- `coach` 🎯 — one card, one action, no buttons.
+No Prepare or Submit buttons: jobs are prepared automatically and submitted by the user in the form.

@@ -5,9 +5,7 @@ Writes <date>.html, <date>.txt and <date>.md next to the JSON and prints the ema
 
 Buttons are mailto links to the user's own address (profile/user.yaml) with subject "Rolewise action: <VERB> <target>". They tap, hit send,
 and the next run reads those emails (daily skill step 0). Verbs:
-  SUBMIT <job-id>   submit this application (counts as their explicit yes for that job)
   SKIP <job-id>     mark skipped (optional reason in the body)
-  PREPARE <job-id>  tailor CV + cover letter and apply when nothing is open
   SEND <draft-id>   send this Gmail draft as written
   WAIT <job-id>     do nothing for now; re-surface in 3 days
   ANSWER <job-id>   their answer to an open question is in the email body
@@ -32,7 +30,8 @@ from urllib.parse import quote
 from userconf import USER  # noqa: E402
 
 ME = USER["email"]
-MAX_ITEMS = 3
+MAX_ITEMS = 3      # cards per section
+MAX_LIST = 10      # rows in the Ready list
 NAVY, INK, MUTED, LINE, SOFT = "#1d3461", "#14223b", "#5b6880", "#dde3ec", "#eef2f8"
 
 
@@ -47,7 +46,7 @@ def button(action, date, primary):
     href = action.get("url") or mailto(action["verb"], action["target"], date)
     bg, fg = (NAVY, "#ffffff") if primary else ("#ffffff", NAVY)
     return (f'<td bgcolor="{bg}" style="background-color:{bg};border:1px solid {NAVY};border-radius:8px">'
-            f'<a href="{escape(href)}" style="display:inline-block;padding:9px 14px;font-size:14px;font-weight:600;'
+            f'<a href="{escape(href)}" style="display:inline-block;padding:7px 12px;font-size:13px;font-weight:600;'
             f'line-height:16px;color:{fg};text-decoration:none;font-family:Arial,sans-serif">{escape(action["label"])}</a></td>')
 
 
@@ -69,13 +68,26 @@ def render(data):
              f'</td></tr></table>',
              f'<div style="border:1px solid {LINE};border-top:0;border-radius:0 0 12px 12px;padding:6px 18px 16px">']
     text = [f"Rolewise · {date}", data["headline"], ""]
+    s = data.get("stats", {})
+    if s:   # the week in one quiet line, right under the headline
+        stat = (f'This week: {s.get("applied_week", 0)} applied · {s.get("interviews", 0)} interviews · '
+                f'reply rate {s.get("response_rate", "n/a")}')
+        parts.append(f'<div style="margin-top:10px;color:{MUTED};font-size:13px">{escape(stat)}</div>')
+        text += [stat, ""]
     for sec in data["sections"]:
         items = sec.get("items", [])
         if not items:
             continue
-        parts.append(f'<div style="margin-top:16px;font-size:13px;font-weight:700;letter-spacing:.03em;'
+        parts.append(f'<div style="margin-top:18px;font-size:13px;font-weight:700;letter-spacing:.03em;'
                      f'text-transform:uppercase;color:{MUTED}">{escape(sec["title"])}</div>')
         text.append(sec["title"].upper())
+        if sec["key"] in ("ready", "new"):   # prepared automatically: a scannable list, not a card per job
+            parts.append(compact_list(sec, items, date))
+            text += [f"- {i['title']}" + (f" ({i['detail']})" if i.get("detail") else "") for i in items[:MAX_LIST]]
+            if sec.get("note"):
+                text.append(f"  {sec['note']}")
+            text.append("")
+            continue
         for item in items[:MAX_ITEMS]:
             parts.append(f'<div style="border:1px solid {LINE};border-radius:10px;padding:10px 12px;margin-top:8px">'
                          f'<div style="font-weight:600">{escape(item["title"])}</div>')
@@ -101,13 +113,6 @@ def render(data):
             parts.append(f'<div style="color:{MUTED};font-size:13px;margin-top:6px">+{hidden} more on the dashboard</div>')
             text.append(f"  +{hidden} more on the dashboard")
         text.append("")
-    s = data.get("stats", {})
-    if s:
-        stat = (f'This week: {s.get("applied_week", 0)} applied · {s.get("interviews", 0)} interviews · '
-                f'response rate {s.get("response_rate", "n/a")}')
-        parts.append(f'<div style="margin-top:16px;background:{SOFT};border-radius:8px;padding:8px 12px;font-size:14px">'
-                     f'📊 {escape(stat)}</div>')
-        text.append(stat)
     # Users without the add-on get a short tip on the first briefing and on Mondays (not every day).
     if not USER.get("fill_addon") and (data.get("first_briefing") or dt.date.fromisoformat(date).weekday() == 0):
         tip = ("Have a laptop with Chrome? The free Rolewise Fill add-on fills application forms for you in seconds; "
@@ -116,15 +121,38 @@ def render(data):
         parts.append(f'<div style="margin-top:12px;border:1px dashed {NAVY};border-radius:8px;padding:8px 12px;'
                      f'font-size:14px">⚡ {escape(tip)}</div>')
         text.append("Tip: " + tip)
-    if data.get("dashboard_url"):
-        parts.append(button_row([{"label": "Open dashboard", "url": data["dashboard_url"]}], date))
-        text.append(f"Dashboard: {data['dashboard_url']}")
     pause = mailto("PAUSE", "", date)
-    parts.append(f'<div style="margin-top:14px;color:{MUTED};font-size:12px">Buttons open a pre-written email to yourself. '
-                 f'Hit send and the next Rolewise run acts on it. Need a break? '
-                 f'<a href="{pause}" style="color:{MUTED}">Pause Rolewise</a> (add "until YYYY-MM-DD" if you like).</div></div></div>')
+    links = [f'<a href="{escape(data["dashboard_url"])}" style="color:{MUTED}">Progress page</a>'] if data.get("dashboard_url") else []
+    links.append(f'<a href="{pause}" style="color:{MUTED}">Pause Rolewise</a>')
+    parts.append(f'<div style="margin-top:18px;padding-top:10px;border-top:1px solid {LINE};color:{MUTED};font-size:12px">'
+                 + " · ".join(links) + "</div></div></div>")
+    if data.get("dashboard_url"):
+        text.append(f"Progress page: {data['dashboard_url']}")
     text.append('Pause Rolewise: email yourself "Rolewise action: PAUSE".')
     return "".join(parts), "\n".join(text)
+
+
+def compact_list(sec, items, date):
+    """Prepared jobs as rows: company and role, one quiet detail line, and a small Skip link (a tap email)."""
+    rows = []
+    for i in items[:MAX_LIST]:
+        skip = next((a for a in i.get("actions", []) if a.get("verb") == "SKIP"), None)
+        link = next((a for a in i.get("actions", []) if a.get("url")), None)
+        title = escape(i["title"])
+        if link:
+            title = f'<a href="{escape(link["url"])}" style="color:{INK};text-decoration:none">{title}</a>'
+        right = (f'<a href="{escape(mailto("SKIP", skip["target"], date))}" style="color:{MUTED};font-size:12px;'
+                 f'text-decoration:underline">Skip</a>') if skip else ""
+        rows.append(f'<tr><td style="padding:8px 0;border-bottom:1px solid {LINE}">'
+                    f'<div style="font-weight:600;font-size:15px">{title}</div>'
+                    + (f'<div style="color:{MUTED};font-size:13px;margin-top:1px">{escape(i["detail"])}</div>' if i.get("detail") else "")
+                    + f'</td><td align="right" valign="middle" style="padding:8px 0 8px 12px;border-bottom:1px solid {LINE};'
+                      f'white-space:nowrap">{right}</td></tr>')
+    hidden = len(items) - MAX_LIST + sec.get("more", 0)
+    more = f'<div style="color:{MUTED};font-size:13px;margin-top:6px">+{hidden} more in the add-on</div>' if hidden > 0 else ""
+    note = f'<div style="color:{MUTED};font-size:13px;margin-top:6px">{escape(sec["note"])}</div>' if sec.get("note") else ""
+    return (f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:4px">'
+            + "".join(rows) + "</table>" + more + note)
 
 
 def subject(data):
@@ -133,14 +161,12 @@ def subject(data):
     if counts.get("today"):
         bits.append(f"{counts['today']} today")
     if counts.get("ready"):
-        bits.append(f"{counts['ready']} ready to submit")
+        bits.append(f"{counts['ready']} ready")
     if counts.get("referral"):
         bits.append(f"{counts['referral']} referral to ask")
     if counts.get("needs_you"):
-        bits.append(f"{counts['needs_you']} need your tap")
-    if counts.get("new"):
-        bits.append(f"{counts['new']} new")
-    return f"Rolewise briefing {data['date']}: " + (" · ".join(bits) or "all clear")
+        bits.append(f"{counts['needs_you']} need you")
+    return f"Rolewise {data['date']}: " + (" · ".join(bits) or "all clear")
 
 
 if __name__ == "__main__":

@@ -3,46 +3,40 @@
 <head>
 <meta charset="utf-8">
 <style>
-  body { width: 340px; margin: 0; font: 14px/1.4 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #14223b; }
-  header { background: #1d3461; color: #fff; padding: 10px 14px; font-weight: 700; }
-  header span { font-weight: 400; color: #c9d4e8; font-size: 12px; display: block; }
-  main { padding: 6px 14px 12px; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: #5b6880; margin: 12px 0 4px; }
-  a.job { display: block; padding: 8px 10px; margin-top: 6px; border: 1px solid #dde3ec; border-radius: 8px;
-          color: #1d3461; font-weight: 600; text-decoration: none; cursor: pointer; }
-  a.job:hover { background: #eef2f8; }
-  .fit { color: #5b6880; font-weight: 400; font-size: 12px; }
-  .muted { color: #5b6880; font-size: 13px; }
-  .row { position: relative; }
-  .row a.job { padding-right: 56px; }
-  button.done { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: 1px solid #dde3ec;
-                background: #fff; color: #5b6880; border-radius: 6px; font-size: 11px; padding: 3px 6px; cursor: pointer; }
-  button.done:hover { color: #1d3461; border-color: #1d3461; }
-  header .top { display: flex; justify-content: space-between; align-items: center; }
-  button.pause { border: 1px solid #c9d4e8; background: transparent; color: #fff; border-radius: 6px; font-size: 11px;
-                 padding: 3px 8px; cursor: pointer; }
-  button.pause:hover { background: rgba(255,255,255,.12); }
-  .paused { background: #fff6e5; color: #7a4b00; border: 1px solid #f0d49a; border-radius: 8px; padding: 8px 10px; margin-top: 10px; font-size: 13px; }
-  .tag { display: block; font-weight: 400; font-size: 11px; color: #5b6880; margin-top: 2px; }
-  .row.iv { padding-right: 70px; }
-  button.debrief { position: absolute; right: 0; top: 2px; border: 1px solid #1d3461; background: #fff; color: #1d3461;
-                   border-radius: 6px; font-size: 11px; padding: 3px 8px; cursor: pointer; }
-  .deb textarea { width: 100%; box-sizing: border-box; margin-top: 6px; font: 13px/1.4 -apple-system, "Segoe UI", Arial, sans-serif;
+  :root { --ink: #14223b; --muted: #5b6880; --line: #e4e9f1; --navy: #1d3461; --soft: #f4f6fa; }
+  body { width: 330px; margin: 0; font: 13px/1.35 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: var(--ink); }
+  header { display: flex; align-items: center; gap: 6px; padding: 10px 12px; background: var(--navy); color: #fff; }
+  header b { flex: 1; font-size: 14px; letter-spacing: .02em; }
+  header button { border: 1px solid rgba(255,255,255,.35); background: transparent; color: #fff; border-radius: 6px;
+                  font-size: 12px; padding: 4px 9px; cursor: pointer; }
+  header button:hover { background: rgba(255,255,255,.14); }
+  main { padding: 4px 12px 12px; }
+  h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 12px 0 2px; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 7px 4px; border-bottom: 1px solid var(--line); border-radius: 6px; }
+  .row:hover { background: var(--soft); }
+  .job { flex: 1; min-width: 0; cursor: pointer; }
+  .co { font-weight: 600; }
+  .role { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tag { display: inline-block; margin-left: 4px; font-size: 10px; font-weight: 600; color: var(--navy); background: #e8eef8;
+         border-radius: 4px; padding: 1px 5px; vertical-align: 1px; }
+  .fit { font-size: 11px; font-weight: 600; color: var(--muted); background: var(--soft); border-radius: 10px; padding: 2px 7px; }
+  .x { border: 0; background: none; color: #a0aabb; font-size: 15px; line-height: 1; cursor: pointer; padding: 2px 4px; }
+  .x:hover { color: #b3261e; }
+  .note { color: var(--muted); padding: 8px 4px 0; }
+  .paused { background: #fff6e5; color: #7a4b00; border-radius: 8px; padding: 8px 10px; margin-top: 10px; }
+  .act { border: 1px solid var(--navy); background: #fff; color: var(--navy); border-radius: 6px; font-size: 11px; padding: 3px 8px; cursor: pointer; }
+  .deb { padding: 0 4px 8px; }
+  .deb textarea { width: 100%; box-sizing: border-box; font: 13px/1.4 -apple-system, "Segoe UI", Arial, sans-serif;
                   border: 1px solid #c9d4e8; border-radius: 6px; padding: 6px; }
-  .deb .save { margin-top: 4px; background: #1d3461; color: #fff; border: 0; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
-  .deb .msg { font-size: 12px; color: #5b6880; }
-  .fillpage { padding: 10px 14px 0; display: flex; gap: 8px; align-items: center; }
-  .fillpage button { background: #1d3461; color: #fff; border: 0; border-radius: 8px; padding: 7px 12px; font-weight: 600; cursor: pointer; }
-  .fillpage span { font-size: 11px; color: #5b6880; }
-  .soon { padding: 4px 0; color: #5b6880; font-size: 13px; }
+  .deb .save { margin-top: 4px; background: var(--navy); color: #fff; border: 0; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  .msg { color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
-<header><div class="top">Rolewise<button id="pause" class="pause" hidden></button></div>
-  <span id="state">Click a job: the form opens and fills itself. You check it and click Submit.</span></header>
-<div class="fillpage"><button id="fillpage">Fill this page</button>
-  <span>Any application form you opened yourself (Alt+Shift+F)</span></div>
-<main id="list"><p class="muted">Loading…</p></main>
+<header><b>Rolewise</b>
+  <button id="fillpage" title="Fill the application form open in this tab (Alt+Shift+F)">Fill page</button>
+  <button id="pause" hidden></button></header>
+<main id="list"><p class="note">Loading…</p></main>
 <script src="popup.js"></script>
 </body>
 </html>
