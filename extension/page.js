@@ -35,7 +35,10 @@
     }).filter(Boolean);
     const top = Math.max(...ranged.map(r => (r.hi === Infinity ? r.lo : r.hi)));
     if (!ranged.length || n > top * 3 || n < top / 20) return null;   // wrong scale (monthly vs yearly)
-    const hit = ranged.find(r => n >= r.lo && n < r.hi) || ranged.find(r => r.hi === Infinity && n >= r.lo);
+    // A floor of 90,000 picks "90 000 - 100 000", and with bands like "85,001 - 90,000 / 90,001 - 95,000" the one
+    // starting just above it (a floor means "or above").
+    const hit = ranged.find(r => n >= r.lo && n < r.hi) || ranged.find(r => r.lo > n && r.lo <= n * 1.02)
+      || ranged.find(r => n >= r.lo && n <= r.hi) || ranged.find(r => r.hi === Infinity && n >= r.lo);
     return hit ? hit.it : null;
   }
   const PLACEHOLDER = /^(select|choose|please|--|—|$)/i;

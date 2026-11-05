@@ -90,7 +90,7 @@
       if (key === "years") {   // "How many years of experience do you have with SQL?" -> the matching topic, if any
         const map = kit.answers.years || {};
         const topic = Object.keys(map).sort((a, b) => b.length - a.length).find(t => L.includes(t.toLowerCase()));
-        return topic ? String(map[topic]) : (/work experience|in total|overall|professional experience/.test(L) && map.total ? String(map.total) : undefined);
+        return topic ? String(map[topic]) : (/work experience\b|in total|overall|professional experience/.test(L) && map.total ? String(map.total) : undefined);
       }
       return key ? kit.answers[key] : IGNORE;
     }
@@ -122,7 +122,10 @@
     }).filter(Boolean);
     const top = Math.max(...ranged.map(r => (r.hi === Infinity ? r.lo : r.hi)));
     if (!ranged.length || n > top * 3 || n < top / 20) return null;   // wrong scale (monthly vs yearly)
-    const hit = ranged.find(r => n >= r.lo && n < r.hi) || ranged.find(r => r.hi === Infinity && n >= r.lo);
+    // A floor of 90,000 picks "90 000 - 100 000", and with bands like "85,001 - 90,000 / 90,001 - 95,000" the one
+    // starting just above it (a floor means "or above").
+    const hit = ranged.find(r => n >= r.lo && n < r.hi) || ranged.find(r => r.lo > n && r.lo <= n * 1.02)
+      || ranged.find(r => n >= r.lo && n <= r.hi) || ranged.find(r => r.hi === Infinity && n >= r.lo);
     return hit ? hit.it : null;
   }
   const PLACEHOLDER = /^(select|choose|please|--|—|$)/i;
@@ -331,6 +334,16 @@
     chrome.storage.local.get({ submitted: [] }, d => {
       if (!d.submitted.includes(id)) chrome.storage.local.set({ submitted: d.submitted.concat(id) });
     });
+    toast("Application submitted ✓ Rolewise has noted it: it leaves your queue now, and the tracker marks it applied on the next run.");
+  }
+  // A short confirmation on the site's thank-you page, so you know it was recorded.
+  function toast(msg) {
+    const t = document.createElement("div");
+    t.style.cssText = "position:fixed;right:16px;top:16px;z-index:2147483647;max-width:320px;background:#1f7a4d;color:#fff;" +
+      "font:14px/1.4 -apple-system,Segoe UI,Arial,sans-serif;padding:12px 14px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.2)";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 10000);
   }
   const submittedIds = () => new Promise(r => chrome.storage.local.get({ submitted: [] }, d => r(d.submitted)));
   const filledKey = () => "rolewise:filled:" + location.href.split("#")[0];
@@ -376,8 +389,7 @@
     if (!e.target.closest("[data-rolewise-again]")) return;
     e.preventDefault(); btn.click();
   });
-  let collapseTimer;
-  panel.addEventListener("mouseenter", () => clearTimeout(collapseTimer));
+
 
   // React sites (Greenhouse) re-render the whole document while hydrating and drop foreign nodes, so attach after
   // the page settles, re-attach if it disappears, and remove it once the page stops being an application form.
@@ -432,8 +444,9 @@
       const first = document.querySelector("[data-rolewise-missing]");
       if (first) first.scrollIntoView({ block: "center", behavior: "smooth" });
     } else setTab("FILLED ✓", "#1f7a4d");
-    clearTimeout(collapseTimer);
-    collapseTimer = setTimeout(() => open(false), r.missing.length ? 8000 : 5000);
+    // Stay on screen until you submit, docked at the top right, clear of the form's Submit button at the bottom.
+    ui.style.top = "12px";
+    panel.style.maxHeight = "45vh";
   }
 
   btn.onclick = async () => {

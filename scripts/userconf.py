@@ -49,7 +49,7 @@ def education():
         t = e["title"].lower()
         if "mba" in t:
             words += ["Master of Business Administration", "MBA", "Master's Degree"]
-        elif re.search(r"master|m\.?sc|m\.?s|m\.?a|llm", t):
+        elif re.search(r"master|m\.?sc|m\.?s\b|m\.?a\b|llm", t):
             words += ["Master's Degree", e["title"]]
         elif re.search(r"phd|ph\.d|doctor", t):
             words += ["Doctorate", "PhD", e["title"]]

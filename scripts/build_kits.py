@@ -61,6 +61,9 @@ RULES = [
     [r"first\s*name|given name", "first_name"],
     [r"last\s*name|surname|family name", "last_name"],
     [r"email me|future (job )?openings|job alerts|keep me (updated|informed)", "future_emails"],
+    # Free-text questions that mention "phone" or "email" in passing: before the contact rules below
+    [r"adjustment|accommodat|if a (video|phone) (or (video|phone) )?interview is not", "adjustments"],
+    [r"what interests you|why (do you want|are you interested|would you like)|why .{0,40}(join|apply|this role|\bus\b)|motivat", "why"],
     [r"whatsapp", "whatsapp"],
     [r"\bsms\b|text messages", None],
     [r"e-?mail", "email"],
@@ -71,7 +74,12 @@ RULES = [
     [r"iran|cuba|north korea|sanction", "export_sanctioned"],
     [r"additional citizenship", "export_additional"],
     [r"citizenship.*first|first.*citizenship", "export_first"],
-    [r"gender|ethnic|race|sexual orientation|transgender|disabilit|veteran|neurodiver|household earner|pronoun", "diversity"],
+    [r"hispanic|latin[oa]", "hispanic"],
+    [r"gender|identify as (a )?(man|woman)", "gender"],
+    [r"ethnic|race\b|racial", "ethnicity"],
+    [r"disabilit", "disability"],
+    [r"veteran|military", "veteran"],
+    [r"sexual orientation|transgender|neurodiver|household earner|pronoun", "diversity"],
     [r"brighthire|record(ed|ing)? (the |our |your )?(interview|conversation|call)|interview recording", "recording_consent"],
     # "Are you authorised to work…?" first: its label often mentions sponsorship too ("we sponsor some roles").
     [r"authori[sz]ed to work|right to work|eligible to work|legally (able|permitted) to work|work permit", "authorised"],
@@ -127,6 +135,8 @@ def base_answers(profile, job):
     comp, avail = profile.get("compensation", {}), profile.get("availability", {})
     std = profile.get("standard_form_answers", {})
     exp = profile.get("citizenship", {}).get("export_control", {})
+    div = profile.get("diversity") if isinstance(profile.get("diversity"), dict) else {}
+    asList = lambda v: [str(x) for x in v] if isinstance(v, list) else ([str(v)] if v else [])
     region = region_of(job)
     home = region == HOME
 
@@ -144,7 +154,7 @@ def base_answers(profile, job):
     salary = re.sub(r"\s*\(.*?\)", "", salary.split("if a number is required:")[-1]).strip() or "Negotiable"
     # Dropdown forms list salary bands: also give the floor as a yearly number ("*band:N*"), and monthly as backup.
     floor = next((float(x.replace(",", "").replace(" ", "")) * (1000 if x.lower().endswith("k") else 1)
-                  for x in re.findall(r"\d[\d, ]*\d(?:k)?|\d+k", salary, re.I)), None)
+                  for x in re.findall(r"\d[\d, ]*\d(?:k\b)?|\d+k\b", salary, re.I)), None)
     monthly = bool(re.search(r"month", salary, re.I))
     salary_answer = [salary] + ([f"*band:{int(floor * 12 if monthly else floor)}*", f"*band:{int(floor if monthly else floor / 12)}*"]
                                 if floor and floor >= 1000 else [])
@@ -174,10 +184,39 @@ def base_answers(profile, job):
         "export_sanctioned": [exp.get("sanctioned_country_citizen_or_resident", "No")],
         "export_additional": ["N/A"], "export_first": ["N/A"],
         "diversity": ["I don't wish", "Prefer not", "Decline", "I do not wish"],
+        # Diversity answers the user chose to give (answers.yaml diversity); anything unset stays "prefer not"
+        **{key: (asList(div.get(key)) or []) + ["I don't wish", "Prefer not", "Decline", "I do not wish"]
+           for key in ("gender", "ethnicity", "hispanic", "disability", "veteran")},
+        "adjustments": std.get("interview_adjustments", "No adjustments needed, thank you."),
         # "How many years of experience with X?" (LinkedIn Easy Apply asks these a lot): only topics the user stated
         "years": {**{str(k).lower(): v for k, v in (profile.get("experience_years") or {}).items()},
                   **({"total": profile["experience"]["years_total"]} if (profile.get("experience") or {}).get("years_total") else {})},
     }
+
+
+def form_urls(job):
+    """Kit URLs, the form first: a Lever or Ashby posting page has no form until you click Apply."""
+    urls = []
+    for u in (job.get("apply_url"), job.get("url")):
+        if not u:
+            continue
+        base = u.split("?")[0].rstrip("/")
+        if re.match(r"https://jobs\.lever\.co/[^/]+/[0-9a-f-]{20,}$", base):
+            urls.append(base + "/apply")
+        elif re.match(r"https://jobs\.ashbyhq\.com/[^/]+/[0-9a-f-]{20,}$", base):
+            urls.append(base + "/application")
+        urls.append(u)
+    return list(dict.fromkeys(urls))
+
+
+def why_from_letter(folder):
+    """'What interests you about X?': the cover letter's opening paragraph (already written and checked for this job)."""
+    letter = folder / "cover-letter.md"
+    if not letter.exists():
+        return None
+    paras = [p.strip() for p in re.split(r"\n\s*\n", letter.read_text(encoding="utf-8")) if p.strip()]
+    body = [p for p in paras if not p.lower().startswith(("dear ", "kind regards", "best", "sincerely"))]
+    return " ".join(body[:2]) if body else None
 
 
 def build(job, profile):
@@ -195,6 +234,7 @@ def build(job, profile):
     if "cv" not in files:
         return None
     answers = base_answers(profile, job)
+    answers["why"] = why_from_letter(folder) or answers.get("why")
     questions = []
     extra = folder / "kit.yaml"
     if extra.exists():
@@ -203,7 +243,7 @@ def build(job, profile):
         questions = override.get("questions") or []
     kit = {"id": job["id"], "company": job["company"], "title": job["title"], "status": job["status"],
            "fit": job.get("fit_score"),
-           "urls": [u for u in (job.get("apply_url"), job.get("url")) if u],
+           "urls": form_urls(job),
            "files": files, "answers": answers, "questions": questions}
     (KITS / f"{job['id']}.json").write_text(json.dumps(kit, indent=2, ensure_ascii=False), encoding="utf-8")
     return kit

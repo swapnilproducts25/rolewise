@@ -35,6 +35,10 @@ Use the Chrome extension (the user's logged-in session) and WebSearch. Rotate so
 ## 2. Filter and score
 - **Matching policy:** follow `fit_scoring.thresholds.matching_policy` in preferences.yaml. Be inclusive. Gaps lower the score, and only hard blockers skip a role.
 - Skip: titles in `exclude.keywords`, excluded companies, duplicates (`tracker.py exists --url ... ` / `--company --title`), roles needing a language the user doesn't list (e.g. "fluent German required"), suspected scams (see CLAUDE.md rule 6).
+- **Check what kind of "product" it is.** A title with "Product" can mean a physical product, menu, category or
+  merchandising job (e.g. a food company's "Product Strategy Manager" who tastes and tests recipes). If the JD says it
+  is not a tech/digital product role, or the work is about physical goods, culinary, retail category or brand
+  management, score it as adjacent at most (fit <= 55) and say so in the summary, unless the user's targets include it.
 - Read the full JD for each survivor. Score with `fit_scoring` weights from preferences (0–100). Be honest: a director role at a 2000-person org needing 5+ yrs people management is a stretch — say so but don't auto-reject; flag as `stretch`.
 - Work authorization: check `answers.yaml` / `preferences.yaml` for where the user can work without sponsorship; elsewhere, still include but note "sponsorship?".
 
