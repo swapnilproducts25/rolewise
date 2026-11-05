@@ -221,9 +221,15 @@ def main(ids):
     index = []
     status = {j["id"]: j["status"] for j in jobs}
     # How the job is applied to, for the add-on's queue: LinkedIn Easy Apply, or the company's own site
-    mode = {j["id"]: ("easy-apply" if str(j.get("easy_apply", "")).lower() in ("yes", "true")
-                      else "company-site" if "linkedin.com" in (j.get("apply_url") or j.get("url") or "") else "")
-            for j in jobs}   # the tracker is the truth: applied/skipped jobs leave the queue
+    def apply_mode(j):
+        ea = str(j.get("easy_apply", "")).lower()
+        on_linkedin = "linkedin.com" in (j.get("apply_url") or j.get("url") or "")
+        if ea in ("yes", "true"):
+            return "easy-apply"
+        if ea in ("no", "false") and on_linkedin:
+            return "company-site"
+        return "linkedin" if on_linkedin else ""   # not known yet: the add-on says how to tell
+    mode = {j["id"]: apply_mode(j) for j in jobs}   # the tracker is the truth: applied/skipped jobs leave the queue
     for path in sorted(KITS.glob("*.json")):
         if path.name in ("index.json", "rules.json", "status.json"):
             continue
