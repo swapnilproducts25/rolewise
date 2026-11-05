@@ -23,20 +23,27 @@ Setup takes about 30 minutes. Have your CV (PDF or Word) to hand.
 
 You'll get your first briefing the same day.
 
-## Every day (5–10 minutes, phone is fine)
-1. Read the **Rolewise briefing** email.
-2. Tap the buttons, such as **Prepare** or **Skip**, or answer a question. A tap opens an email to yourself; hit send.
-   Rolewise reads it on the next run.
-3. To apply, tap **Open job** and upload the CV from the **CV** link. The answers to paste are in the card.
-   You always click Submit yourself.
+## Every day (10–20 minutes)
+1. Read the **Rolewise briefing** email (phone is fine). Rolewise has already prepared the good matches: a tailored
+   CV, a cover letter and form answers for each. Buttons let you skip one, pause Rolewise, or answer a question; a tap
+   opens an email to yourself, hit send, and the next run acts on it.
+2. To apply: with the add-on (laptop), click a job in its queue, check the filled form and click Submit. Without it,
+   tap **Open job**, upload the CV from the **CV** link and paste the answers from the card.
+3. After an interview, jot rough notes (the add-on's **Debrief** button, or `/debrief <company>`).
 
 Change anything, any time, in plain words: open a session in claude.ai/code and type `/profile` ("add Berlin",
 "my notice is now 2 weeks", "use the compact CV"). Also handy: `/prep <company>` before an interview,
 `/debrief <company>` after one, `/coach` for a weekly review.
 
-**Optional, if you have a laptop with Chrome:** the **Rolewise Fill** add-on fills application forms for you.
-It needs the Claude desktop app and Python on that laptop, so it suits people comfortable installing software
-(about 20 minutes). Ask Rolewise "set up Rolewise Fill" and it walks you through it. A one-click version is planned.
+**Optional, if you have a laptop with Chrome:** the **Rolewise Fill** add-on fills application forms for you, including
+LinkedIn Easy Apply (step by step) and any other form via **Fill this page**. It needs the Claude desktop app and
+Python on that laptop, so it suits people comfortable installing software (about 20 minutes). Ask Rolewise
+"set up Rolewise Fill" and it walks you through it, including the small local helper that makes Skip, Pause and
+Debrief one click. Add your own Anthropic API key in its settings for **✨ Draft** answers inside forms.
+
+**Optional, recommended:** import your LinkedIn data (LinkedIn → Settings → Data privacy → Get a copy of your data).
+Rolewise uses your connections to suggest referrals, your past applications so nothing is suggested twice, and
+shows where your LinkedIn profile and CV disagree.
 
 ## What Rolewise never does
 - Submit an application, send an email or message anyone without your yes.

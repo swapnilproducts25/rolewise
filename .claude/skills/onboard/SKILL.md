@@ -90,6 +90,15 @@ Close the round with: "That's all I need. You can change any of this any time: j
 The add-on fills application forms. It needs this folder on the laptop: `git clone` their repo (or download it as a
 zip from GitHub), then `chrome://extensions` → Developer mode → Load unpacked → the `extension` folder, and run
 `python scripts/build_kits.py` (the laptop run does this daily). Set `fill_addon: true`. Skip it on phone-only setups.
+Then, in this order:
+1. **Local helper** (one-click Skip, applied, Pause, Debrief without tap emails): ask for the add-on's ID from
+   `chrome://extensions` (32 letters under "Rolewise Fill") and run `python scripts/install_native_host.py <id>`
+   (a per-user Chrome setting; no admin rights). Ask them to reload the add-on.
+2. **✨ Draft in forms** (optional): explain it needs their own Anthropic API key (console.anthropic.com → Billing,
+   then API keys), billed separately from their Claude plan, a fraction of a cent per answer. They paste it on the
+   add-on's options page themselves; never ask for the key in chat.
+3. Show the three ways to fill: a job in the add-on's queue; LinkedIn Easy Apply (click Easy Apply, then Fill this
+   step on each step); any other form via the icon → **Fill this page** (Alt+Shift+F).
 
 ## 6. First results
 Run the `discover` skill once (small: 10–15 roles), then render and send a first briefing to their email

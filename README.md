@@ -8,16 +8,21 @@ Free and open source. Your data stays in your own accounts.
 
 ## What it does
 - **Finds jobs**: company career pages for the companies you pick, your LinkedIn job-alert emails, and job boards.
-  Each role is scored for fit with a one-line reason.
-- **Tailors your CV** for each role, using only facts from your own CV, in one of three clean styles.
+  Each role is scored for fit with a one-line reason; closed postings and roles you already applied to are dropped.
+- **Prepares every good match without waiting for you**: a tailored CV (only facts from your own CV, in one of three
+  clean styles), a cover letter, and answers to the form's own questions, ready in a queue.
 - **Drafts cover letters and form answers** in plain, human language.
+- **Finds warm referrals** in your own LinkedIn connections at the companies you apply to (optional data import),
+  and drafts the message for you to send.
 - **Tracks every application** by reading your Gmail for confirmations, rejections and interview invites.
 - **Prepares you for interviews** and helps afterwards with debriefs, follow-ups and offer negotiation.
 - **Coaches you** each week: what's working and what to change.
-- Optional **Rolewise Fill** Chrome add-on (laptop): fills application forms on Greenhouse, Lever, Ashby,
-  Workable, SmartRecruiters and Homerun (most tested on Greenhouse so far). You check the form and click Submit. Setup currently needs the
-  Claude desktop app and Python on your laptop; a one-click Chrome Web Store version is planned.
-  Optional: add your own Anthropic API key in the add-on's settings to get **✨ Draft** under unusual form
+- Optional **Rolewise Fill** Chrome add-on (laptop): a queue of ready jobs; one click opens the form and fills it
+  (CV, cover letter, answers, salary band, dropdowns). Works on Greenhouse, Lever, Ashby, Workable, SmartRecruiters,
+  Homerun, LinkedIn Easy Apply (step by step, you click Next) and Workday, and on any other form with
+  **Fill this page** (Alt+Shift+F). You check the form and click Submit. Skip, Pause and interview Debrief notes are
+  one click in the add-on. Setup needs the Claude desktop app and Python on your laptop.
+  Optional: your own Anthropic API key in the add-on's settings adds **✨ Draft / Redraft / Shorter** under unusual
   questions, written into the field from your CV and the job description (a fraction of a cent per answer).
 
 ## What you need
