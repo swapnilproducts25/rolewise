@@ -55,6 +55,14 @@
   ];
   const CONSENT = /consent|agree|acknowledg|privacy|data (protection|transfer|retention|processing)|point of data|terms|retain my data|gdpr/;
 
+  function questionLabel(el) {
+    const fs = el.closest("fieldset");
+    if (fs) return labelFor(fs);
+    const box = el.closest(".application-question, [class*=question], .field, .form-group, li");
+    const l = box && box.querySelector(".application-label, legend, [class*=label]:not(:has(input))");
+    return l ? norm(l.innerText.replace(/[*✱]/g, "")) : labelFor(el);
+  }
+
   function labelFor(el) {
     let t = "";
     if (el.labels && el.labels.length) t = el.labels[0].innerText;
@@ -83,7 +91,7 @@
   function lookup(label, kit) {
     const L = low(label);
     for (const q of kit.questions || []) {
-      if ((q.match || []).every(k => L.includes(String(k).toLowerCase()))) return q.value;
+      if ((q.match || []).every(k => L.includes(String(k).toLowerCase()))) { if (q.review) drafted.add(norm(label)); return q.value; }
     }
     for (const [re, key] of activeRules) {
       if (!re.test(L)) continue;
@@ -98,6 +106,7 @@
     }
     return undefined;
   }
+  const drafted = new Set();   // labels answered with a drafted (not standard) answer in this fill
   const IGNORE = Symbol("ignore"); // a rule maps this label to "leave it alone" (e.g. phone country picker)
 
   function setNative(el, value) {
@@ -188,6 +197,7 @@
   }
 
   async function fill(kit) {
+    drafted.clear();
     const report = { filled: [], missing: [] };
     await attachFiles(kit, report);
     await sleep(STEP_MODE ? 800 : 3000); // let the form re-render after uploads before typing
@@ -205,7 +215,7 @@
         seen.add(el.name);
         const group = [...document.querySelectorAll(`input[type=radio][name="${CSS.escape(el.name)}"]`)];
         if (group.some(r => r.checked)) continue;
-        const qLabel = labelFor(el.closest("fieldset") || el);
+        const qLabel = questionLabel(el);
         const v = lookup(qLabel, kit);
         if (v === IGNORE) continue;
         const hit = v && pick(group.map(r => ({ el: r, text: labelFor(r) })), v);
@@ -271,11 +281,14 @@
     await attachFiles(kit, report);   // second pass: upload boxes that appeared while the form was being filled
     if (kit.files.cv && ROOT.querySelector("input[type=file]") && !report.filled.some(f => f.startsWith("CV"))) report.missing.push("CV upload (attach it yourself)");
     report.missing.push(...unanswered(controls));
+    report.drafted = [...drafted].filter(l => report.filled.includes(l));
+    controls.filter(el => report.drafted.includes(labelFor(el)) || report.drafted.includes(questionLabel(el)))
+      .forEach(el => { el.style.outline = "3px solid #3b6fd8"; });
     report.filled = [...new Set(report.filled)];
     report.missing = [...new Set(report.missing)].filter(m => m && !report.filled.includes(m));
     // Highlight what still needs the user.
     document.querySelectorAll("[data-rolewise-missing]").forEach(e => { e.style.outline = ""; e.removeAttribute("data-rolewise-missing"); });
-    controls.filter(el => report.missing.includes(labelFor(el)) || report.missing.includes(labelFor(el.closest("fieldset") || el)))
+    controls.filter(el => report.missing.includes(labelFor(el)) || report.missing.includes(questionLabel(el)))
       .forEach(el => { el.style.outline = "3px solid #e0a800"; el.setAttribute("data-rolewise-missing", "1"); });
     return report;
   }
@@ -295,7 +308,7 @@
       if (el.type === "radio") {
         if (radios.has(el.name)) continue; radios.add(el.name);
         const group = [...document.querySelectorAll(`input[type=radio][name="${CSS.escape(el.name)}"]`)];
-        if (!group.some(r => r.checked) && needed(el)) out.push(labelFor(el.closest("fieldset") || el));
+        if (!group.some(r => r.checked) && needed(el)) out.push(questionLabel(el));
       } else if (el.getAttribute("role") === "combobox") {
         const box = el.closest(".select__container, .select-shell, [class*=select]");
         const has = box && box.querySelector("[class*=single-value], [class*=singleValue], [class*=multi-value], [class*=multiValue]");
@@ -419,6 +432,16 @@
     chrome.storage.local.set({ liDay: today(), liJobs: jobs.concat(kitId) });
     return false;
   }
+  // Questions only the live form shows: open Claude with the question, the role and the CV facts already in the
+  // prompt; paste the answer back. Yes/No, consent and upload items are not "draftable".
+  const draftable = label => !/^cv upload|consent|acknowledg|privacy/i.test(label) && label.length > 25;
+  function claudeLink(kit, question) {
+    const prompt = `Help me answer a question on a job application. Use only the facts below about me and never add` +
+      ` anything they don't support. First person, plain and specific, no em dashes, about 80 to 120 words.\n\n` +
+      `Job: ${kit.title} at ${kit.company}\nQuestion: ${question}\n\nFacts about me:\n${kit.context || ""}`;
+    return "https://claude.ai/new?q=" + encodeURIComponent(prompt.slice(0, 6000));
+  }
+
   async function run(kitId) {
     if (LINKEDIN && await linkedinCapReached(kitId)) {
       show("You've reached today's 15 LinkedIn applications. Rolewise keeps this cap to protect your account; carry on tomorrow.");
@@ -435,8 +458,9 @@
     const esc = x => String(x).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
     show(`<b>${esc(kit.company)} · ${esc(kit.title)}</b>
       ${r.missing.length
-        ? `<div style="margin-top:8px;color:#9a5b00"><b>${r.missing.length} to answer yourself</b> (outlined in yellow)<br>${r.missing.map(x => "• " + esc(x.slice(0, 80))).join("<br>")}</div>`
+        ? `<div style="margin-top:8px;color:#9a5b00"><b>${r.missing.length} to answer yourself</b> (outlined in yellow)<br>${r.missing.map(x => "• " + esc(x.slice(0, 80)) + (draftable(x) ? ` <a href="${claudeLink(kit, x)}" target="_blank" rel="noopener" style="color:#1d3461">Draft with Claude</a>` : "")).join("<br>")}</div>`
         : `<div style="margin-top:8px;color:#1f7a4d"><b>All ${r.filled.length} fields filled.</b></div>`}
+      ${r.drafted.length ? `<div style="margin-top:8px;color:#3b6fd8"><b>${r.drafted.length} drafted from your CV</b> (outlined in blue): check the wording<br>${r.drafted.map(x => "✎ " + esc(x.slice(0, 80))).join("<br>")}</div>` : ""}
       <div style="margin-top:10px;font-weight:600">${STEP_MODE ? "Check this step, then click Next (or Submit on the last step). On the next step, click Fill this step again." : "Review the form, then click its Submit button."}</div>
       <details style="margin-top:8px;font-size:12px;color:#5b6880"><summary style="cursor:pointer">What was filled</summary>${r.filled.map(x => "✓ " + esc(x.slice(0, 70))).join("<br>")}</details>
       ${again}`);

@@ -31,6 +31,14 @@ Inputs: `applications/<id>/jd.md`, `profile/master-cv.yaml`, `profile/story-bank
 - **Truth check before building** — diff every changed bullet against its master id: same facts, same numbers, no new tools/claims. If a JD requirement could be covered by something not in the files, ask the user and add it to master/story-bank once confirmed.
 - Build: write `applications/<id>/tailor.yaml` (set `variant: <name>` when `master-cv.yaml` has a contact variant for the job's region, e.g. `eu`) and run `.venv/Scripts/python scripts/tailor_cv.py <id>`. It applies the variant to the contact line. **Check the header** of the built CV matches the job region.
 - Then make the files submission-ready: `.venv/Scripts/python scripts/build_cover_letter.py <id>` (if a cover letter was written), `.venv/Scripts/python scripts/to_pdf.py <id>` (PDF versions; on a cloud machine it installs LibreOffice once per session, and if that fails the .docx is used) and `.venv/Scripts/python scripts/build_kits.py <id>` (Rolewise Fill kit, prefers the PDFs).
+- **Draft the form's own questions** (Greenhouse and Lever publish them): run `python scripts/form_questions.py <id>`. For every
+  question it lists as open, add an answer to `applications/<id>/kit.yaml` under `questions:` as
+  `{match: [2-3 distinctive lowercase words from the label], value: "...", review: true}`. Free text: 60-120 words, first
+  person, facts only from `master-cv.yaml` / `story-bank.md`, same voice rules as the cover letter. Yes/No and choices:
+  pick the option the CV supports and add a `# why` comment. A question needing a fact the files don't hold (a personal
+  preference, a legal declaration not in answers.yaml) is an open item: leave it out and ask. Optional questions about
+  the company's own values or culture: answer only from the JD or the company page you actually read, else skip.
+  Then rebuild the kit (`scripts/build_kits.py <id>`); the add-on outlines drafted answers in blue for checking.
 - Update tracker: `tracker.py update <id> --status preparing --set cv_file="applications/<id>/<file_prefix> - CV - <Company>.docx"`
 
 ## 3. Optional cover letter

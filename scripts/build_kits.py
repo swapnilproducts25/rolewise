@@ -64,7 +64,7 @@ RULES = [
     # Free-text questions that mention "phone" or "email" in passing: before the contact rules below
     [r"how many years|years of (work |relevant |professional )?experience|years' experience", "years"],
     [r"adjustment|accommodat|if a (video|phone) (or (video|phone) )?interview is not", "adjustments"],
-    [r"what interests you|why (do you want|are you interested|would you like)|why .{0,40}(join|apply|this role|\bus\b)|motivat", "why"],
+    [r"what interests you|why (do you want|are you interested|would you like)|why .{0,40}(join|apply|this role|\bus\b)|motivat|excites? you|excited about", "why"],
     [r"whatsapp", "whatsapp"],
     [r"\bsms\b|text messages", None],
     [r"e-?mail", "email"],
@@ -225,6 +225,19 @@ def why_from_letter(folder):
     return " ".join(body[:2]) if body else None
 
 
+def cv_context(folder, limit=2500):
+    """Facts for the add-on's "Draft with Claude" link: the job's tailored CV (or the master), as short plain lines."""
+    src = folder / "cv.yaml" if (folder / "cv.yaml").exists() else ROOT / "profile" / "master-cv.yaml"
+    cv = yaml.safe_load(src.read_text(encoding="utf-8")) or {}
+    plain = lambda s: re.sub(r"\*\*", "", str(s or "")).strip()
+    lines = [plain(cv.get("summary"))]
+    for role in (cv.get("experience") or []) + (cv.get("projects") or []):
+        lines.append(f"{role.get('title', '')} at {role.get('company', '')} ({role.get('dates', '')}):".replace(" at  ", " "))
+        lines += [f"- {plain(b.get('text'))}" for b in role.get("bullets") or [] if not b.get("hide")]
+    out = "\n".join(l for l in lines if l)
+    return out[:limit]
+
+
 def build(job, profile):
     folder = ROOT / "applications" / job["id"]
     files = {}
@@ -250,7 +263,7 @@ def build(job, profile):
     kit = {"id": job["id"], "company": job["company"], "title": job["title"], "status": job["status"],
            "fit": job.get("fit_score"),
            "urls": form_urls(job),
-           "files": files, "answers": answers, "questions": questions}
+           "files": files, "answers": answers, "questions": questions, "context": cv_context(folder)}
     (KITS / f"{job['id']}.json").write_text(json.dumps(kit, indent=2, ensure_ascii=False), encoding="utf-8")
     return kit
 
