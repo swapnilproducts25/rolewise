@@ -67,6 +67,11 @@ Close the round with: "That's all I need. You can change any of this any time: j
 - **LinkedIn job alerts** (recommended, 2 min, they do it in LinkedIn): suggest 2–4 saved searches from Q6/Q7 with
   "Daily, Email". Rolewise reads the alert emails; it never browses LinkedIn for them on the web route.
 
+- **LinkedIn data** (optional, recommended; laptop): LinkedIn → Settings → Data privacy → Get a copy of your data (the
+  full archive arrives by email within a day). Unzip it into this folder and run
+  `python scripts/linkedin_import.py "<folder>"`: connections for referral suggestions (they stay on the laptop), past
+  applications so nothing is suggested twice, and `coach/linkedin-insights.md`.
+
 ## 4. The daily run
 - **Web/phone**: create a daily cloud routine. Prefer doing it yourself with `/schedule` (or the RemoteTrigger tool):
   name "Rolewise Daily", 08:00 in their timezone (convert to UTC and confirm), this repo, the Gmail and Google Drive
