@@ -55,10 +55,12 @@
   ];
   const CONSENT = /consent|agree|acknowledg|privacy|data (protection|transfer|retention|processing)|point of data|terms|retain my data|gdpr/;
 
+  const questionBox = el => el.closest(".application-question") || el.closest("[class*=question], .field, .form-group")
+    || el.closest("li");
   function questionLabel(el) {
     const fs = el.closest("fieldset");
     if (fs) return labelFor(fs);
-    const box = el.closest(".application-question, [class*=question], .field, .form-group, li");
+    const box = questionBox(el);
     const l = box && box.querySelector(".application-label, legend, [class*=label]:not(:has(input))");
     return l ? norm(l.innerText.replace(/[*✱]/g, "")) : labelFor(el);
   }
@@ -183,7 +185,8 @@
       const name = path.split("/").pop();
       // Some widgets upload on change and then clear the input: look for the file name nearby to avoid duplicates.
       const box = input.closest("fieldset, [class*=question], [class*=field], [class*=upload], li") || input.parentElement;
-      if (report.filled.some(f => f.endsWith(name)) || (box && box.innerText.includes(name))) continue;
+      if (report.filled.some(f => f.endsWith(name))) continue;
+      if (box && box.innerText.includes(name)) { report.filled.push(`${kind === "cv" ? "CV" : "Cover letter"}: ${name}`); continue; }
       const blob = await (await fetch(chrome.runtime.getURL(path))).blob();
       const type = name.endsWith(".pdf") ? "application/pdf"
         : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -232,18 +235,19 @@
         }
         if (!el.checked && CONSENT.test(L)) { el.click(); report.filled.push(`☑ ${label.slice(0, 60)}`); continue; }
         // Checkbox questions ("How did you hear about us?"): answer the question once, by its fieldset label.
-        const fs = el.closest("fieldset");
-        if (fs) {
+        const fs = el.closest("fieldset") || el.closest(".application-question");
+        if (fs && fs.querySelectorAll("input[type=checkbox]").length > 1) {
           if (!seen.has(fs)) {
             seen.add(fs);
             const boxes = [...fs.querySelectorAll("input[type=checkbox]")];
-            const gv = lookup(labelFor(fs), kit);
+            const q = questionLabel(el);
+            const gv = lookup(q, kit);
             if (gv !== undefined && gv !== IGNORE && !boxes.some(b => b.checked)) {
               const hit = pick(boxes.map(b => ({ el: b, text: labelFor(b) })), gv);
-              if (hit) { hit.el.click(); report.filled.push(labelFor(fs)); answered.add(fs); }
-            }
+              if (hit) { hit.el.click(); report.filled.push(q); answered.add(fs); }
+            } else if (boxes.some(b => b.checked)) answered.add(fs);
           }
-          if (answered.has(fs)) continue;
+          continue;   // never treat an option ("Yes", "He/him") as a question of its own
         }
         const v = lookup(label, kit);
         if (v === IGNORE) continue;
@@ -274,6 +278,20 @@
       if (el.value) continue;
       const v = lookup(label, kit);
       if (v === IGNORE) continue;
+      const picker = el.parentElement && el.parentElement.querySelector("input[name=selectedLocation]");
+      if (picker && kit.answers.city) {
+        const city = asList(kit.answers.city)[0];
+        setNative(el, city);
+        el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "a" }));
+        let opt = null;
+        for (let i = 0; i < 12 && !opt; i++) {
+          await sleep(400);
+          opt = [...el.parentElement.querySelectorAll("[class*=dropdown-location], [class*=dropdown] [class*=result], [class*=dropdown] li, [role=option]")]
+            .find(o => o.offsetParent !== null && low(o.innerText).includes(low(city)));
+        }
+        if (opt) { opt.click(); report.filled.push(label); } else report.missing.push(label);
+        continue;
+      }
       if (v !== undefined && !Array.isArray(v)) { setNative(el, String(v)); report.filled.push(label); }
       else if (Array.isArray(v) && v.length) { setNative(el, String(v[0])); report.filled.push(label); }
       else if (el.required || el.getAttribute("aria-required") === "true") report.missing.push(label);
@@ -452,7 +470,15 @@
     setBusy(true);
     await loadRules();
     const kit = await (await fetch(chrome.runtime.getURL(`kits/${kitId}.json`))).json();
-    const r = await fill(kit);
+    let r = await fill(kit);
+    await sleep(STEP_MODE ? 0 : 4000);
+    if (!STEP_MODE) {
+      const again2 = await fill(kit);
+      again2.filled = [...new Set(r.filled.concat(again2.filled))];
+      again2.missing = again2.missing.filter(m => !again2.filled.includes(m));
+      again2.drafted = [...new Set((r.drafted || []).concat(again2.drafted || []))];
+      r = again2;
+    }
     try { sessionStorage.setItem(filledKey(), "1"); sessionStorage.setItem("rolewise:lastKit", kitId); } catch (e) {}
     setBusy(false);
     const esc = x => String(x).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
