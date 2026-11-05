@@ -42,7 +42,40 @@ async function draft({ question, job, facts, jobDescription, previous, instructi
   return text ? { text } : { error: "No draft came back. Try again." };
 }
 
+// Kit files for the content script (only paths under kits/), as JSON or a data: URL for CV/letter uploads.
+async function kitFile(path, as) {
+  if (!/^kits\/[\w .()&',\/-]+$/.test(path) || path.includes("..")) throw new Error("not a kit file");
+  const res = await fetch(chrome.runtime.getURL(path));
+  if (!res.ok) throw new Error(`missing ${path}`);
+  if (as === "json") return res.json();
+  const buf = new Uint8Array(await res.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  const type = path.endsWith(".pdf") ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  return `data:${type};base64,${btoa(bin)}`;
+}
+
+// "Fill this page" (toolbar menu or Alt+Shift+F): add Rolewise Fill to the open tab, whatever site it is, and open it.
+async function fillTab(tabId) {
+  await chrome.scripting.executeScript({ target: { tabId }, files: ["page.js"], world: "MAIN" }).catch(() => {});
+  await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+  await chrome.tabs.sendMessage(tabId, { type: "rolewise-fill-page" });
+}
+chrome.commands.onCommand.addListener(async command => {
+  if (command !== "fill-page") return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab) fillTab(tab.id).catch(() => {});
+});
+
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+  if (msg && msg.type === "rolewise-file") {
+    kitFile(msg.path, msg.as).then(data => reply({ ok: true, data }), e => reply({ ok: false, error: e.message }));
+    return true;
+  }
+  if (msg && msg.type === "rolewise-fill-tab") {
+    fillTab(msg.tabId).then(() => reply({ ok: true }), e => reply({ ok: false, error: e.message }));
+    return true;
+  }
   if (msg && msg.type === "rolewise-draft") {
     draft(msg).then(reply, e => reply({ error: String(e && e.message || e) }));
     return true;   // keep the channel open for the async reply

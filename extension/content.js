@@ -4,6 +4,11 @@
   window.__rolewiseFill = true;
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // Kits (answers, CV files) are read through the background worker, never exposed to the page.
+  const kitFile = (path, as = "json") => new Promise((resolve, reject) =>
+    chrome.runtime.sendMessage({ type: "rolewise-file", path, as }, res =>
+      res && res.ok ? resolve(res.data) : reject(new Error((res && res.error) || "kit not found"))));
+  const dataUrlToBlob = async url => (await fetch(url)).blob();
   // Multi-step sites (LinkedIn Easy Apply, Workday): the user opens each step; Rolewise fills only the step on
   // screen when asked, never on page load, and never clicks Next, Review or Submit.
   const LINKEDIN = location.hostname.endsWith("linkedin.com");
@@ -86,7 +91,7 @@
   let activeRules = RULES;
   async function loadRules() {
     try {
-      const raw = await (await fetch(chrome.runtime.getURL("kits/rules.json"))).json();
+      const raw = await kitFile("kits/rules.json");
       activeRules = raw.map(([pattern, key]) => [new RegExp(pattern), key]);
     } catch (e) { activeRules = RULES; }
   }
@@ -188,7 +193,7 @@
       const box = input.closest("fieldset, [class*=question], [class*=field], [class*=upload], li") || input.parentElement;
       if (report.filled.some(f => f.endsWith(name))) continue;
       if (box && box.innerText.includes(name)) { report.filled.push(`${kind === "cv" ? "CV" : "Cover letter"}: ${name}`); continue; }
-      const blob = await (await fetch(chrome.runtime.getURL(path))).blob();
+      const blob = await dataUrlToBlob(await kitFile(path, "dataurl"));
       const type = name.endsWith(".pdf") ? "application/pdf"
         : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       const dt = new DataTransfer();
@@ -344,7 +349,7 @@
   }
 
   async function loadIndex() {
-    return (await fetch(chrome.runtime.getURL("kits/index.json"))).json();
+    return kitFile("kits/index.json");
   }
   const token = u => (u || "").toLowerCase().replace(/[?#].*$/, "").replace(/\/+$/, "");
   function matchKit(index) {
@@ -435,10 +440,18 @@
 
   // React sites (Greenhouse) re-render the whole document while hydrating and drop foreign nodes, so attach after
   // the page settles, re-attach if it disappears, and remove it once the page stops being an application form.
+  let forced = false;   // opened by hand ("Fill this page"): stay on this page whatever it looks like
+  chrome.runtime.onMessage.addListener(msg => {
+    if (!msg || msg.type !== "rolewise-fill-page" || window.top !== window) return;
+    forced = true;
+    if (!ui.isConnected) document.body.appendChild(ui);
+    refreshState();
+    btn.click();
+  });
   if (window.top === window) {
     let autoDone = false;
     const sync = () => {
-      const want = isApplicationPage();
+      const want = forced || isApplicationPage();
       if (want && !ui.isConnected) { document.body.appendChild(ui); refreshState(); }
       if (!want && ui.isConnected) ui.remove();
       // A confirmation page after Rolewise filled a form here: drop that job from the Ready queue.
@@ -524,7 +537,7 @@
     show(STEP_MODE ? "Filling this step…" : "Filling… this takes about 10 seconds.");
     setBusy(true);
     await loadRules();
-    const kit = await (await fetch(chrome.runtime.getURL(`kits/${kitId}.json`))).json();
+    const kit = await kitFile(`kits/${kitId}.json`);
     let r = await fill(kit);
     await sleep(STEP_MODE ? 0 : 4000);
     if (!STEP_MODE) {
@@ -565,7 +578,12 @@
       const index = await loadIndex();
       const kit = matchKit(index);
       if (kit) return run(kit.id);
-      show(`<b>Which job is this?</b><br><select id="jf-pick" style="width:100%;margin-top:6px">${index.map(k => `<option value="${k.id}">${k.label}</option>`).join("")}</select>
+      const page = low(location.hostname + " " + document.title + " " + (document.querySelector("h1") || {}).innerText);
+      const company = k => low(k.label.split(" · ")[0]).replace(/\(.*?\)/g, "").trim();
+      const ranked = index.filter(k => ["ready", "preparing", "shortlisted"].includes(k.status))
+        .map(k => ({ k, hit: company(k).split(/\s+/).some(w => w.length > 2 && page.includes(w)) }))
+        .sort((a, b) => b.hit - a.hit || (b.k.fit || 0) - (a.k.fit || 0)).map(x => x.k);
+      show(`<b>Which job is this?</b><br><select id="jf-pick" style="width:100%;margin-top:6px">${ranked.map(k => `<option value="${k.id}">${k.label}</option>`).join("")}</select>
         <button id="jf-go" style="margin-top:8px;width:100%;background:#fff;color:#1d3461;border:1px solid #1d3461;border-radius:8px;padding:8px">Fill this job</button>`);
       body.querySelector("#jf-go").onclick = () => run(body.querySelector("#jf-pick").value);
     } catch (e) {

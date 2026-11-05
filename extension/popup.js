@@ -67,7 +67,7 @@ async function render() {
     ? `<h2>Ready to submit (${ready.length})</h2>` + ready.map(k =>
         `<div class="row"><a class="job" data-url="${esc(k.urls[0])}">${esc(k.label)}${k.fit ? ` <span class="fit">fit ${k.fit}</span>` : ""}` +
         (k.mode === "easy-apply" ? `<span class="tag">LinkedIn Easy Apply: click Easy Apply, then Fill this step</span>`
-          : k.mode === "company-site" ? `<span class="tag">Applies on the company's site: use the PDFs in its folder</span>`
+          : k.mode === "company-site" ? `<span class="tag">Click Apply on LinkedIn, then on the company's form: Rolewise icon → Fill this page</span>`
           : k.mode === "linkedin" ? `<span class="tag">On LinkedIn: if it shows Easy Apply, click it, then Fill this step</span>` : "") + `</a>` +
         `<button class="done" data-id="${esc(k.id)}" title="Not applying: remove it from the queue">Skip</button></div>`).join("")
     : `<p class="muted">Nothing ready right now. New jobs appear here as Rolewise prepares them.</p>`;
@@ -86,6 +86,14 @@ async function render() {
   renderInterviews(st);
   await renderPause(st);
 }
+
+document.getElementById("fillpage").onclick = async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return;
+  const res = await new Promise(r => chrome.runtime.sendMessage({ type: "rolewise-fill-tab", tabId: tab.id }, r));
+  if (res && res.ok) window.close();
+  else document.querySelector(".fillpage span").textContent = "This page can't be filled (e.g. a Chrome page). Open the application form first.";
+};
 
 render().catch(() => {
   list.innerHTML = `<p class="muted">No jobs yet. Rolewise builds them on your laptop's daily run
