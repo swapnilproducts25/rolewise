@@ -62,6 +62,7 @@ RULES = [
     [r"last\s*name|surname|family name", "last_name"],
     [r"email me|future (job )?openings|job alerts|keep me (updated|informed)", "future_emails"],
     # Free-text questions that mention "phone" or "email" in passing: before the contact rules below
+    [r"how many years|years of (work |relevant |professional )?experience|years' experience", "years"],
     [r"adjustment|accommodat|if a (video|phone) (or (video|phone) )?interview is not", "adjustments"],
     [r"what interests you|why (do you want|are you interested|would you like)|why .{0,40}(join|apply|this role|\bus\b)|motivat", "why"],
     [r"whatsapp", "whatsapp"],
@@ -79,7 +80,10 @@ RULES = [
     [r"ethnic|race\b|racial", "ethnicity"],
     [r"disabilit", "disability"],
     [r"veteran|military", "veteran"],
-    [r"sexual orientation|transgender|neurodiver|household earner|pronoun", "diversity"],
+    [r"sexual orientation", "sexual_orientation"],
+    [r"pronoun", "pronouns"],
+    [r"criminal|convict", "criminal"],
+    [r"transgender|neurodiver|household earner", "diversity"],
     [r"brighthire|record(ed|ing)? (the |our |your )?(interview|conversation|call)|interview recording", "recording_consent"],
     # "Are you authorised to work…?" first: its label often mentions sponsorship too ("we sponsor some roles").
     [r"authori[sz]ed to work|right to work|eligible to work|legally (able|permitted) to work|work permit", "authorised"],
@@ -186,8 +190,10 @@ def base_answers(profile, job):
         "diversity": ["I don't wish", "Prefer not", "Decline", "I do not wish"],
         # Diversity answers the user chose to give (answers.yaml diversity); anything unset stays "prefer not"
         **{key: (asList(div.get(key)) or []) + ["I don't wish", "Prefer not", "Decline", "I do not wish"]
-           for key in ("gender", "ethnicity", "hispanic", "disability", "veteran")},
+           for key in ("gender", "ethnicity", "hispanic", "disability", "veteran", "sexual_orientation", "pronouns")},
         "adjustments": std.get("interview_adjustments", "No adjustments needed, thank you."),
+        # A legal declaration: answered only when the user has saved it (answers.yaml standard_form_answers)
+        **({"criminal": [std["criminal_convictions"]]} if std.get("criminal_convictions") else {}),
         # "How many years of experience with X?" (LinkedIn Easy Apply asks these a lot): only topics the user stated
         "years": {**{str(k).lower(): v for k, v in (profile.get("experience_years") or {}).items()},
                   **({"total": profile["experience"]["years_total"]} if (profile.get("experience") or {}).get("years_total") else {})},

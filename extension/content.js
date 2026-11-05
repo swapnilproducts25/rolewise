@@ -89,7 +89,9 @@
       if (!re.test(L)) continue;
       if (key === "years") {   // "How many years of experience do you have with SQL?" -> the matching topic, if any
         const map = kit.answers.years || {};
-        const topic = Object.keys(map).sort((a, b) => b.length - a.length).find(t => L.includes(t.toLowerCase()));
+        // Longest topic first, whole words only ("ai" must not match "email" or "maintain")
+        const hasWords = t => new RegExp(`(^|[^a-z0-9])${t.toLowerCase().replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}($|[^a-z0-9])`).test(L);
+        const topic = Object.keys(map).sort((a, b) => b.length - a.length).find(hasWords);
         return topic ? String(map[topic]) : (/work experience\b|in total|overall|professional experience/.test(L) && map.total ? String(map.total) : undefined);
       }
       return key ? kit.answers[key] : IGNORE;
