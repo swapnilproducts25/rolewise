@@ -44,7 +44,7 @@ For each job with score ≥ `thresholds.shortlist`:
 .venv/Scripts/python scripts/tracker.py add --company "..." --title "..." --location "..." --work-mode hybrid \
   --url "<canonical job URL>" --source linkedin --fit 78 --summary "<1 line: why it fits / main gap>" --status shortlisted
 ```
-Save the JD to `applications/<id>/jd.md` (title, company, location, URL, date seen, full text). Jobs below threshold: don't add (keep the tracker clean) unless notable.
+For LinkedIn jobs, also record how they're applied to: `--set easy_apply=yes` when the alert or job page says "Easy Apply", `easy_apply=no` when it sends you to the company's site (then set `apply_url` to that site if you can see it). Save the JD to `applications/<id>/jd.md` (title, company, location, URL, date seen, full text). Jobs below threshold: don't add (keep the tracker clean) unless notable.
 
 ## 4. Report to the user
 A compact table sorted by fit: fit | company | role | location/mode | posted | applicants | Easy Apply? | one-line why/gap.

@@ -219,13 +219,18 @@ def main(ids):
         kit = build(j, profile)
         print(f"{'kit' if kit else 'no CV, skipped'}: {j['id']}")
     index = []
-    status = {j["id"]: j["status"] for j in jobs}   # the tracker is the truth: applied/skipped jobs leave the queue
+    status = {j["id"]: j["status"] for j in jobs}
+    # How the job is applied to, for the add-on's queue: LinkedIn Easy Apply, or the company's own site
+    mode = {j["id"]: ("easy-apply" if str(j.get("easy_apply", "")).lower() in ("yes", "true")
+                      else "company-site" if "linkedin.com" in (j.get("apply_url") or j.get("url") or "") else "")
+            for j in jobs}   # the tracker is the truth: applied/skipped jobs leave the queue
     for path in sorted(KITS.glob("*.json")):
         if path.name in ("index.json", "rules.json", "status.json"):
             continue
         k = json.loads(path.read_text(encoding="utf-8"))
         index.append({"id": k["id"], "label": f"{k['company']} · {k['title']}", "urls": k["urls"],
-                      "status": status.get(k["id"], k.get("status")), "fit": k.get("fit")})
+                      "status": status.get(k["id"], k.get("status")), "fit": k.get("fit"),
+                      "mode": mode.get(k["id"], "")})
     (KITS / "index.json").write_text(json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8")
     (KITS / "rules.json").write_text(json.dumps(RULES, indent=1, ensure_ascii=False), encoding="utf-8")
     (KITS / "status.json").write_text(json.dumps({"paused": bool(USER.get("paused")), "paused_until": USER.get("paused_until") or "",

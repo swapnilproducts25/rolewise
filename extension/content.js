@@ -316,7 +316,7 @@
 
   // ---------- UI ----------
   // Only on real application forms, never on confirmation/thank-you pages.
-  const DONE_TEXT = /thank you for (applying|your application)|application (has been|was) (received|submitted)|and\.\.\.sent|we('| ha)ve received your application/i;
+  const DONE_TEXT = /thank you for (applying|your application)|application (has been|was) (received|submitted|sent)|your application was sent|and\.\.\.sent|we('| ha)ve received your application/i;
   function isApplicationPage() {
     if (LINKEDIN) return !!linkedinModal();
     if (/confirmation|thank-?you|submitted/i.test(location.pathname + location.search)) return false;

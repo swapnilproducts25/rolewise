@@ -47,7 +47,9 @@ async function render() {
   const coming = index.filter(k => k.status === "preparing").sort(byFit);
   let html = ready.length
     ? `<h2>Ready to submit (${ready.length})</h2>` + ready.map(k =>
-        `<div class="row"><a class="job" data-url="${esc(k.urls[0])}">${esc(k.label)}${k.fit ? ` <span class="fit">fit ${k.fit}</span>` : ""}</a>` +
+        `<div class="row"><a class="job" data-url="${esc(k.urls[0])}">${esc(k.label)}${k.fit ? ` <span class="fit">fit ${k.fit}</span>` : ""}` +
+        (k.mode === "easy-apply" ? `<span class="tag">LinkedIn Easy Apply: click Easy Apply, then Fill this step</span>`
+          : k.mode === "company-site" ? `<span class="tag">Applies on the company's site: use the PDFs in its folder</span>` : "") + `</a>` +
         `<button class="done" data-id="${esc(k.id)}" title="Not applying: hide it and tell Rolewise">Skip</button></div>`).join("")
     : `<p class="muted">Nothing ready right now. New jobs appear here after you tap Prepare in your briefing.</p>`;
   if (coming.length)
