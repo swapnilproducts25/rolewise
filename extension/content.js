@@ -73,7 +73,8 @@
     }
     if (!t) t = el.getAttribute("aria-label") || "";
     if (!t) {
-      const box = el.closest("fieldset, .field, .application-question, .select__container, [class*=field], [class*=question], li, .form-group");
+      const box = el.closest(".application-question")
+        || el.closest("fieldset, .field, .select__container, [class*=field], [class*=question], li, .form-group");
       const l = box && box.querySelector("label, legend, .application-label, [class*=label]");
       t = l ? l.innerText : "";
     }
@@ -199,11 +200,11 @@
     }
   }
 
-  async function fill(kit) {
+  async function fill(kit, second = false) {
     drafted.clear();
     const report = { filled: [], missing: [] };
-    await attachFiles(kit, report);
-    await sleep(STEP_MODE ? 800 : 3000); // let the form re-render after uploads before typing
+    if (!second) await attachFiles(kit, report);
+    await sleep(second ? 0 : STEP_MODE ? 800 : 3000); // let the form re-render after uploads before typing
 
     const seen = new Set();
     const answered = new Set();
@@ -281,8 +282,11 @@
       const picker = el.parentElement && el.parentElement.querySelector("input[name=selectedLocation]");
       if (picker && kit.answers.city) {
         const city = asList(kit.answers.city)[0];
-        setNative(el, city);
-        el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "a" }));
+        el.focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, city);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: city.slice(-1) }));
+        el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: city.slice(-1) }));
         let opt = null;
         for (let i = 0; i < 12 && !opt; i++) {
           await sleep(400);
@@ -296,8 +300,8 @@
       else if (Array.isArray(v) && v.length) { setNative(el, String(v[0])); report.filled.push(label); }
       else if (el.required || el.getAttribute("aria-required") === "true") report.missing.push(label);
     }
-    await attachFiles(kit, report);   // second pass: upload boxes that appeared while the form was being filled
-    if (kit.files.cv && ROOT.querySelector("input[type=file]") && !report.filled.some(f => f.startsWith("CV"))) report.missing.push("CV upload (attach it yourself)");
+    if (!second) await attachFiles(kit, report);   // upload boxes that appeared while the form was being filled
+    if (!second && kit.files.cv && ROOT.querySelector("input[type=file]") && !report.filled.some(f => f.startsWith("CV"))) report.missing.push("CV upload (attach it yourself)");
     report.missing.push(...unanswered(controls));
     report.drafted = [...drafted].filter(l => report.filled.includes(l));
     controls.filter(el => report.drafted.includes(labelFor(el)) || report.drafted.includes(questionLabel(el)))
@@ -450,14 +454,60 @@
     chrome.storage.local.set({ liDay: today(), liJobs: jobs.concat(kitId) });
     return false;
   }
-  // Questions only the live form shows: open Claude with the question, the role and the CV facts already in the
-  // prompt; paste the answer back. Yes/No, consent and upload items are not "draftable".
+  // Free-text questions: a small "✨ Draft" bar right under the field. Claude writes the answer into the field from the
+  // job and the CV facts in the kit (background.js, the user's own API key); Redraft / Shorter / More specific refine it.
   const draftable = label => !/^cv upload|consent|acknowledg|privacy/i.test(label) && label.length > 25;
-  function claudeLink(kit, question) {
-    const prompt = `Help me answer a question on a job application. Use only the facts below about me and never add` +
-      ` anything they don't support. First person, plain and specific, no em dashes, about 80 to 120 words.\n\n` +
-      `Job: ${kit.title} at ${kit.company}\nQuestion: ${question}\n\nFacts about me:\n${kit.context || ""}`;
-    return "https://claude.ai/new?q=" + encodeURIComponent(prompt.slice(0, 6000));
+  const freeText = el => (el.tagName === "TEXTAREA" || (el.type === "text" && !el.closest("[class*=select]")))
+    && !el.parentElement.querySelector("input[name=selectedLocation]");
+  function draftBar(el, kit, question) {
+    if (el.nextElementSibling && el.nextElementSibling.dataset && el.nextElementSibling.dataset.rolewiseBar) return;
+    const bar = document.createElement("div");
+    bar.dataset.rolewiseBar = "1";
+    bar.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0 10px;font:13px/1.3 -apple-system,Segoe UI,Arial,sans-serif";
+    const mk = (text, primary) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = text;
+      b.style.cssText = primary
+        ? "background:#1d3461;color:#fff;border:0;border-radius:7px;padding:6px 12px;font-weight:600;cursor:pointer"
+        : "background:#fff;color:#1d3461;border:1px solid #c9d4e8;border-radius:7px;padding:5px 10px;cursor:pointer";
+      return b;
+    };
+    const status = document.createElement("span");
+    status.style.color = "#5b6880";
+    const draftBtn = mk(el.value ? "✨ Redraft" : "✨ Draft with Rolewise", true);
+    const refine = [["Shorter", "make it about half as long"], ["More specific", "make it more specific to this job, with one concrete result"],
+                    ["Warmer", "make it a little warmer and more personal, same facts"]].map(([t, how]) => [mk(t), how]);
+    let previous = "";
+    const ask = async instruction => {
+      status.textContent = "Drafting…";
+      [draftBtn, ...refine.map(r => r[0])].forEach(b => { b.disabled = true; b.style.opacity = ".5"; });
+      const res = await chrome.runtime.sendMessage({ type: "rolewise-draft", question, job: `${kit.title} at ${kit.company}`,
+        facts: kit.context || "", jobDescription: kit.jd || "", previous: instruction ? (el.value || previous) : "", instruction });
+      [draftBtn, ...refine.map(r => r[0])].forEach(b => { b.disabled = false; b.style.opacity = "1"; });
+      if (res && res.needKey) {
+        status.innerHTML = 'Add your Anthropic API key once to draft here. <a href="#" style="color:#1d3461">Open settings</a>';
+        status.querySelector("a").onclick = e => { e.preventDefault(); chrome.runtime.sendMessage({ type: "rolewise-options" }); };
+        return;
+      }
+      if (!res || res.error) { status.textContent = (res && res.error) || "Couldn't draft. Try again."; return; }
+      previous = res.text;
+      setNative(el, res.text);
+      el.style.outline = "3px solid #3b6fd8";
+      draftBtn.textContent = "✨ Redraft";
+      refine.forEach(([b]) => { b.hidden = false; });
+      status.textContent = "Drafted from your CV. Check it, edit freely.";
+    };
+    draftBtn.onclick = () => ask("");
+    refine.forEach(([b, how]) => { b.hidden = !el.value; b.onclick = () => ask(how); });
+    bar.append(draftBtn, ...refine.map(r => r[0]), status);
+    el.insertAdjacentElement("afterend", bar);
+  }
+  function addDraftBars(kit, controls, labels) {
+    for (const el of controls) {
+      if (!el.isConnected || el.offsetParent === null || !freeText(el)) continue;
+      const q = labelFor(el);
+      if (labels.includes(q) && draftable(q)) draftBar(el, kit, q);
+    }
   }
 
   async function run(kitId) {
@@ -473,9 +523,10 @@
     let r = await fill(kit);
     await sleep(STEP_MODE ? 0 : 4000);
     if (!STEP_MODE) {
-      const again2 = await fill(kit);
+      const again2 = await fill(kit, true);
       again2.filled = [...new Set(r.filled.concat(again2.filled))];
-      again2.missing = again2.missing.filter(m => !again2.filled.includes(m));
+      again2.missing = [...new Set(r.missing.concat(again2.missing))].filter(m => !again2.filled.includes(m)
+        && !(m.startsWith("CV upload") && again2.filled.some(f => f.startsWith("CV"))));
       again2.drafted = [...new Set((r.drafted || []).concat(again2.drafted || []))];
       r = again2;
     }
@@ -484,12 +535,13 @@
     const esc = x => String(x).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
     show(`<b>${esc(kit.company)} · ${esc(kit.title)}</b>
       ${r.missing.length
-        ? `<div style="margin-top:8px;color:#9a5b00"><b>${r.missing.length} to answer yourself</b> (outlined in yellow)<br>${r.missing.map(x => "• " + esc(x.slice(0, 80)) + (draftable(x) ? ` <a href="${claudeLink(kit, x)}" target="_blank" rel="noopener" style="color:#1d3461">Draft with Claude</a>` : "")).join("<br>")}</div>`
+        ? `<div style="margin-top:8px;color:#9a5b00"><b>${r.missing.length} to answer yourself</b> (outlined in yellow)<br>${r.missing.map(x => "• " + esc(x.slice(0, 80)) + (draftable(x) ? " <span style=\"color:#1d3461\">(✨ Draft is under the field)</span>" : "")).join("<br>")}</div>`
         : `<div style="margin-top:8px;color:#1f7a4d"><b>All ${r.filled.length} fields filled.</b></div>`}
       ${r.drafted.length ? `<div style="margin-top:8px;color:#3b6fd8"><b>${r.drafted.length} drafted from your CV</b> (outlined in blue): check the wording<br>${r.drafted.map(x => "✎ " + esc(x.slice(0, 80))).join("<br>")}</div>` : ""}
       <div style="margin-top:10px;font-weight:600">${STEP_MODE ? "Check this step, then click Next (or Submit on the last step). On the next step, click Fill this step again." : "Review the form, then click its Submit button."}</div>
       <details style="margin-top:8px;font-size:12px;color:#5b6880"><summary style="cursor:pointer">What was filled</summary>${r.filled.map(x => "✓ " + esc(x.slice(0, 70))).join("<br>")}</details>
       ${again}`);
+    addDraftBars(kit, [...ROOT.querySelectorAll("textarea, input[type=text]")], r.missing.concat(r.drafted || []));
     // Get out of the way of the form's own Submit button: collapse to the edge tab, which keeps the status.
     if (r.missing.length) {
       setTab(`${r.missing.length} TO CHECK`, "#9a5b00");

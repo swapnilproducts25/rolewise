@@ -17,6 +17,8 @@ Free and open source. Your data stays in your own accounts.
 - Optional **Rolewise Fill** Chrome add-on (laptop): fills application forms on Greenhouse, Lever, Ashby,
   Workable, SmartRecruiters and Homerun (most tested on Greenhouse so far). You check the form and click Submit. Setup currently needs the
   Claude desktop app and Python on your laptop; a one-click Chrome Web Store version is planned.
+  Optional: add your own Anthropic API key in the add-on's settings to get **✨ Draft** under unusual form
+  questions, written into the field from your CV and the job description (a fraction of a cent per answer).
 
 ## What you need
 - A Claude **Pro or Max** plan (claude.ai).

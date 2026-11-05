@@ -238,6 +238,15 @@ def cv_context(folder, limit=2500):
     return out[:limit]
 
 
+def jd_excerpt(folder, limit=3500):
+    """The job description as plain text, for drafting answers in the form."""
+    jd = folder / "jd.md"
+    if not jd.exists():
+        return ""
+    text = re.sub(r"<[^>]+>", " ", jd.read_text(encoding="utf-8"))
+    return re.sub(r"\s+", " ", text).strip()[:limit]
+
+
 def build(job, profile):
     folder = ROOT / "applications" / job["id"]
     files = {}
@@ -263,7 +272,7 @@ def build(job, profile):
     kit = {"id": job["id"], "company": job["company"], "title": job["title"], "status": job["status"],
            "fit": job.get("fit_score"),
            "urls": form_urls(job),
-           "files": files, "answers": answers, "questions": questions, "context": cv_context(folder)}
+           "files": files, "answers": answers, "questions": questions, "context": cv_context(folder), "jd": jd_excerpt(folder)}
     (KITS / f"{job['id']}.json").write_text(json.dumps(kit, indent=2, ensure_ascii=False), encoding="utf-8")
     return kit
 
