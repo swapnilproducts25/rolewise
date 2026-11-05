@@ -94,7 +94,7 @@
   function lookup(label, kit) {
     const L = low(label);
     for (const q of kit.questions || []) {
-      if ((q.match || []).every(k => L.includes(String(k).toLowerCase()))) { if (q.review) drafted.add(norm(label)); return q.value; }
+      if ((q.match || []).every(k => L.includes(String(k).toLowerCase()))) { if (q.review && String(q.value).length > 30) drafted.add(norm(label)); return q.value; }
     }
     for (const [re, key] of activeRules) {
       if (!re.test(L)) continue;
@@ -281,17 +281,20 @@
       if (v === IGNORE) continue;
       const picker = el.parentElement && el.parentElement.querySelector("input[name=selectedLocation]");
       if (picker && kit.answers.city) {
-        const city = asList(kit.answers.city)[0];
-        el.focus();
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, city);
-        el.dispatchEvent(new Event("input", { bubbles: true }));
-        el.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: city.slice(-1) }));
-        el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: city.slice(-1) }));
+        const tries = asList(kit.answers.residence_country).sort((a, b) => b.length - a.length).concat(asList(kit.answers.city));
         let opt = null;
-        for (let i = 0; i < 12 && !opt; i++) {
-          await sleep(400);
-          opt = [...el.parentElement.querySelectorAll("[class*=dropdown-location], [class*=dropdown] [class*=result], [class*=dropdown] li, [role=option]")]
-            .find(o => o.offsetParent !== null && low(o.innerText).includes(low(city)));
+        for (const place of tries) {
+          el.focus();
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, place);
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: place.slice(-1) }));
+          el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: place.slice(-1) }));
+          for (let i = 0; i < 10 && !opt; i++) {
+            await sleep(400);
+            opt = [...el.parentElement.querySelectorAll("[class*=dropdown-location], [class*=dropdown] [class*=result], [class*=dropdown] li, [role=option]")]
+              .find(o => o.offsetParent !== null && low(o.innerText).includes(low(place)));
+          }
+          if (opt) break;
         }
         if (opt) { opt.click(); report.filled.push(label); } else report.missing.push(label);
         continue;

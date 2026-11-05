@@ -93,7 +93,8 @@ RULES = [
     [r"hybrid|in-?office|on-?site|office location|days per week", "hybrid"],
     [r"previously (worked|been employed)|former employee|worked (for|at) .{0,40}before|ever worked|ever been employed|employed by", "previously_worked"],
     [r"how did you (hear|find|learn)|where did you (hear|find)|source", "heard"],
-    [r"country (where|in which) you (currently )?reside|country of residence|country you live", "residence_country"],
+    [r"country (where|in which) you (currently )?reside|country of residence|country (do )?you live|what is your location|"
+     r"which country|where do you (currently )?live", "residence_country"],
     [r"^school\b|university|institution", "school"],
     [r"^degree\b", "degree"],
     [r"discipline|field of study|major", "discipline"],
