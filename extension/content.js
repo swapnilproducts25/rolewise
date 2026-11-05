@@ -4,6 +4,15 @@
   window.__rolewiseFill = true;
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // Multi-step sites (LinkedIn Easy Apply, Workday): the user opens each step; Rolewise fills only the step on
+  // screen when asked, never on page load, and never clicks Next, Review or Submit.
+  const LINKEDIN = location.hostname.endsWith("linkedin.com");
+  const STEP_MODE = LINKEDIN || /myworkday(jobs)?\.com$/.test(location.hostname);
+  const linkedinModal = () => [...document.querySelectorAll(
+    ".jobs-easy-apply-modal, .jobs-easy-apply-content, [data-test-modal-id='easy-apply-modal'], div[role=dialog]")]
+    .find(d => d.offsetParent !== null && d.querySelector("input, select, textarea")
+      && /easy apply|apply to|contact info|resume|additional questions|review your application|work authori/i.test(d.innerText || ""));
+  let ROOT = document;   // where fill() looks: the Easy Apply dialog on LinkedIn, the whole page elsewhere
   const norm = s => (s || "").replace(/\s+/g, " ").trim();
   const low = s => norm(s).toLowerCase();
 
@@ -22,8 +31,9 @@
     [/additional citizenship/, "export_additional"],
     [/citizenship.*first|first.*citizenship/, "export_first"],
     [/gender|ethnic|race|sexual orientation|transgender|disabilit|veteran|neurodiver|household earner|pronoun/, "diversity"],
-    [/sponsor/, "sponsorship"],
     [/authori[sz]ed to work|right to work|eligible to work|legally (able|permitted) to work|work permit/, "authorised"],
+    [/(require|need|will you).{0,60}sponsor|visa sponsorship/, "sponsorship"],
+    [/how many years|years of (work |relevant |professional )?experience|years' experience/, "years"],
     [/relocat/, "relocate"],
     [/remote location|work remotely|remote work/, null],
     [/hybrid|in-?office|on-?site|office location|days per week/, "hybrid"],
@@ -76,7 +86,13 @@
       if ((q.match || []).every(k => L.includes(String(k).toLowerCase()))) return q.value;
     }
     for (const [re, key] of activeRules) {
-      if (re.test(L)) return key ? kit.answers[key] : IGNORE;
+      if (!re.test(L)) continue;
+      if (key === "years") {   // "How many years of experience do you have with SQL?" -> the matching topic, if any
+        const map = kit.answers.years || {};
+        const topic = Object.keys(map).sort((a, b) => b.length - a.length).find(t => L.includes(t.toLowerCase()));
+        return topic ? String(map[topic]) : (/work experience|in total|overall|professional experience/.test(L) && map.total ? String(map.total) : undefined);
+      }
+      return key ? kit.answers[key] : IGNORE;
     }
     return undefined;
   }
@@ -143,8 +159,8 @@
 
   async function attachFiles(kit, report) {
     // Upload widgets (Homerun, Workable) can render after the text fields: wait up to 8s for them.
-    for (let i = 0; i < 16 && !document.querySelector("input[type=file]"); i++) await sleep(500);
-    const inputs = [...document.querySelectorAll("input[type=file]")];
+    for (let i = 0; i < (STEP_MODE ? 2 : 16) && !ROOT.querySelector("input[type=file]"); i++) await sleep(500);
+    const inputs = [...ROOT.querySelectorAll("input[type=file]")];
     for (const input of inputs) {
       const L = low(labelFor(input) + " " + input.id + " " + input.name);
       const kind = /cover/.test(L) ? "cover_letter" : /resume|cv\b|curriculum/.test(L) ? "cv" : null;
@@ -169,11 +185,11 @@
   async function fill(kit) {
     const report = { filled: [], missing: [] };
     await attachFiles(kit, report);
-    await sleep(3000); // let the form re-render after uploads before typing
+    await sleep(STEP_MODE ? 800 : 3000); // let the form re-render after uploads before typing
 
     const seen = new Set();
     const answered = new Set();
-    const controls = [...document.querySelectorAll("input, textarea, select")]
+    const controls = [...ROOT.querySelectorAll("input, textarea, select")]
       .filter(el => !["hidden", "file", "submit", "button", "search"].includes(el.type) && !el.disabled
         && !(el.id || "").startsWith("g-recaptcha") && el.offsetParent !== null);
 
@@ -248,7 +264,7 @@
       else if (el.required || el.getAttribute("aria-required") === "true") report.missing.push(label);
     }
     await attachFiles(kit, report);   // second pass: upload boxes that appeared while the form was being filled
-    if (kit.files.cv && document.querySelector("input[type=file]") && !report.filled.some(f => f.startsWith("CV"))) report.missing.push("CV upload (attach it yourself)");
+    if (kit.files.cv && ROOT.querySelector("input[type=file]") && !report.filled.some(f => f.startsWith("CV"))) report.missing.push("CV upload (attach it yourself)");
     report.missing.push(...unanswered(controls));
     report.filled = [...new Set(report.filled)];
     report.missing = [...new Set(report.missing)].filter(m => m && !report.filled.includes(m));
@@ -290,7 +306,7 @@
   const token = u => (u || "").toLowerCase().replace(/[?#].*$/, "").replace(/\/+$/, "");
   function matchKit(index) {
     const here = location.href.toLowerCase();
-    const jid = (here.match(/(?:jobs\/|token=|gh_jid=)(\d{5,})/) || [])[1];
+    const jid = (here.match(/(?:jobs\/|token=|gh_jid=|currentjobid=|view\/)(\d{5,})/) || [])[1];
     return index.find(k => k.urls.some(u => {
       const t = token(u);
       const kid = (u.toLowerCase().match(/(?:jobs\/|token=|gh_jid=|view\/)(\d{5,})/) || [])[1];
@@ -302,6 +318,7 @@
   // Only on real application forms, never on confirmation/thank-you pages.
   const DONE_TEXT = /thank you for (applying|your application)|application (has been|was) (received|submitted)|and\.\.\.sent|we('| ha)ve received your application/i;
   function isApplicationPage() {
+    if (LINKEDIN) return !!linkedinModal();
     if (/confirmation|thank-?you|submitted/i.test(location.pathname + location.search)) return false;
     if (DONE_TEXT.test((document.body && document.body.innerText || "").slice(0, 4000))) return false;
     return !!document.querySelector("input[type=file], #first_name, input[name*=email i], input[autocomplete=email], input[type=email]");
@@ -317,7 +334,7 @@
   }
   const submittedIds = () => new Promise(r => chrome.storage.local.get({ submitted: [] }, d => r(d.submitted)));
   const filledKey = () => "rolewise:filled:" + location.href.split("#")[0];
-  const alreadyFilled = () => { try { return sessionStorage.getItem(filledKey()) === "1"; } catch (e) { return false; } };
+  const alreadyFilled = () => { if (STEP_MODE) return false; try { return sessionStorage.getItem(filledKey()) === "1"; } catch (e) { return false; } };
 
   // Compact tab on the right edge (vertically centred, away from Submit buttons); click to expand / collapse.
   const ui = document.createElement("div");
@@ -349,7 +366,7 @@
   const setTab = (text, colour) => { tab.textContent = text; tab.style.background = colour || "#1d3461"; };
   const refreshState = () => {
     if (busy) return;
-    btn.textContent = "Fill with Rolewise";
+    btn.textContent = STEP_MODE ? "Fill this step" : "Fill with Rolewise";
     btn.style.display = alreadyFilled() ? "none" : "block";   // filled: the job now is to review and submit
     if (alreadyFilled()) body.innerHTML ||= `Filled. Review the form and click its Submit button.${again}`;
   };
@@ -373,14 +390,28 @@
       // A confirmation page after Rolewise filled a form here: drop that job from the Ready queue.
       if (!want) markSubmitted();
       // Opened from the briefing's "Open & fill" button (#rolewise-fill): fill once, automatically.
-      if (want && !autoDone && /(rolewise|jobify)-fill/.test(location.hash) && !alreadyFilled()) { autoDone = true; btn.click(); }
+      if (want && !STEP_MODE && !autoDone && /(rolewise|jobify)-fill/.test(location.hash) && !alreadyFilled()) { autoDone = true; btn.click(); }
     };
     setTimeout(sync, 2500);
     setInterval(sync, 2000);
   }
 
+  const today = () => new Date().toISOString().slice(0, 10);
+  async function linkedinCapReached(kitId) {
+    const d = await new Promise(r => chrome.storage.local.get({ liDay: "", liJobs: [] }, r));
+    const jobs = d.liDay === today() ? d.liJobs : [];
+    if (jobs.includes(kitId)) return false;
+    if (jobs.length >= 15) return true;
+    chrome.storage.local.set({ liDay: today(), liJobs: jobs.concat(kitId) });
+    return false;
+  }
   async function run(kitId) {
-    show("Filling… this takes about 10 seconds.");
+    if (LINKEDIN && await linkedinCapReached(kitId)) {
+      show("You've reached today's 15 LinkedIn applications. Rolewise keeps this cap to protect your account; carry on tomorrow.");
+      return;
+    }
+    ROOT = (LINKEDIN && linkedinModal()) || document;
+    show(STEP_MODE ? "Filling this step…" : "Filling… this takes about 10 seconds.");
     setBusy(true);
     await loadRules();
     const kit = await (await fetch(chrome.runtime.getURL(`kits/${kitId}.json`))).json();
@@ -392,7 +423,7 @@
       ${r.missing.length
         ? `<div style="margin-top:8px;color:#9a5b00"><b>${r.missing.length} to answer yourself</b> (outlined in yellow)<br>${r.missing.map(x => "• " + esc(x.slice(0, 80))).join("<br>")}</div>`
         : `<div style="margin-top:8px;color:#1f7a4d"><b>All ${r.filled.length} fields filled.</b></div>`}
-      <div style="margin-top:10px;font-weight:600">Review the form, then click its Submit button.</div>
+      <div style="margin-top:10px;font-weight:600">${STEP_MODE ? "Check this step, then click Next (or Submit on the last step). On the next step, click Fill this step again." : "Review the form, then click its Submit button."}</div>
       <details style="margin-top:8px;font-size:12px;color:#5b6880"><summary style="cursor:pointer">What was filled</summary>${r.filled.map(x => "✓ " + esc(x.slice(0, 70))).join("<br>")}</details>
       ${again}`);
     // Get out of the way of the form's own Submit button: collapse to the edge tab, which keeps the status.

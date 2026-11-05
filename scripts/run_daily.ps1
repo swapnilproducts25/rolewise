@@ -21,7 +21,12 @@ if ($git) { git pull --rebase --autostash *>> "logs\git.log" }
 $readyIds = & $py -c "import json;print(' '.join(j['id'] for j in json.load(open('tracker/applications.json',encoding='utf-8')) if j['status'] in ('ready','preparing')))"
 if ($readyIds) { & $py scripts/to_pdf.py $readyIds.Split(" ") *>> "logs/kits.log"; & $py scripts/build_kits.py *>> "logs/kits.log" }
 
-if ($mode -eq "cloud") {
+# Paused (from the add-on or the briefing): the cloud run, or in laptop mode this short run, only listens for RESUME.
+$paused = & $py -c "import yaml,datetime as d;u=yaml.safe_load(open('profile/user.yaml',encoding='utf-8')) or {};e=str(u.get('paused_until') or '');print(int(bool(u.get('paused')) and (not e or e>=d.date.today().isoformat())))"
+if ($paused -eq "1") {
+  if ($mode -eq "cloud") { New-Item -ItemType File $done | Out-Null; exit 0 }
+  $prompt = "/daily Rolewise is PAUSED (profile/user.yaml). Follow the daily skill's pause rule only: act on PAUSE/RESUME taps, track silently, commit. If a RESUME tap arrived, run the whole loop."
+} elseif ($mode -eq "cloud") {
   # Nothing for Chrome to do and no referral to draft? Skip without spending a run.
   $queue = & $py -c "import json;print(sum(1 for j in json.load(open('tracker/applications.json',encoding='utf-8')) if j['status'] in ('ready','preparing')))"
   if ([int]$queue -eq 0 -and -not (Test-Path 'profile\connections.csv')) { New-Item -ItemType File $done | Out-Null; exit 0 }

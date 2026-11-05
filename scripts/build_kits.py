@@ -174,6 +174,9 @@ def base_answers(profile, job):
         "export_sanctioned": [exp.get("sanctioned_country_citizen_or_resident", "No")],
         "export_additional": ["N/A"], "export_first": ["N/A"],
         "diversity": ["I don't wish", "Prefer not", "Decline", "I do not wish"],
+        # "How many years of experience with X?" (LinkedIn Easy Apply asks these a lot): only topics the user stated
+        "years": {**{str(k).lower(): v for k, v in (profile.get("experience_years") or {}).items()},
+                  **({"total": profile["experience"]["years_total"]} if (profile.get("experience") or {}).get("years_total") else {})},
     }
 
 
@@ -218,13 +221,15 @@ def main(ids):
     index = []
     status = {j["id"]: j["status"] for j in jobs}   # the tracker is the truth: applied/skipped jobs leave the queue
     for path in sorted(KITS.glob("*.json")):
-        if path.name in ("index.json", "rules.json"):
+        if path.name in ("index.json", "rules.json", "status.json"):
             continue
         k = json.loads(path.read_text(encoding="utf-8"))
         index.append({"id": k["id"], "label": f"{k['company']} · {k['title']}", "urls": k["urls"],
                       "status": status.get(k["id"], k.get("status")), "fit": k.get("fit")})
     (KITS / "index.json").write_text(json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8")
     (KITS / "rules.json").write_text(json.dumps(RULES, indent=1, ensure_ascii=False), encoding="utf-8")
+    (KITS / "status.json").write_text(json.dumps({"paused": bool(USER.get("paused")), "paused_until": USER.get("paused_until") or "",
+                                                  "email": USER.get("email", "")}, indent=1), encoding="utf-8")
     print(f"index: {len(index)} kits")
 
 

@@ -16,7 +16,11 @@ if [ "$mode" = "cloud" ]; then git pull --rebase --autostash >> logs/git.log 2>&
 ids=$($py -c "import json;print(' '.join(j['id'] for j in json.load(open('tracker/applications.json')) if j['status'] in ('ready','preparing')))")
 [ -n "$ids" ] && { $py scripts/to_pdf.py $ids; $py scripts/build_kits.py; } >> logs/kits.log 2>&1
 
-if [ "$mode" = "cloud" ]; then
+paused=$($py -c "import yaml,datetime as d;u=yaml.safe_load(open('profile/user.yaml')) or {};e=str(u.get('paused_until') or '');print(int(bool(u.get('paused')) and (not e or e>=d.date.today().isoformat())))")
+if [ "$paused" = "1" ]; then
+  [ "$mode" = "cloud" ] && { touch "$done_file"; exit 0; }
+  prompt="/daily Rolewise is PAUSED (profile/user.yaml). Follow the daily skill's pause rule only: act on PAUSE/RESUME taps, track silently, commit. If a RESUME tap arrived, run the whole loop."
+elif [ "$mode" = "cloud" ]; then
   prompt="This is the Rolewise LAPTOP run (Chrome available, the user is away). The cloud routine already did today's /daily. Do only laptop work: LinkedIn/Workday/logged-in tasks with Claude in Chrome, and the daily skill's step 5b laptop part. Supported-form applications wait in Rolewise Fill's Ready queue. Then update the tracker, note a 'Laptop run' section in today's briefing file, and commit."
 else
   prompt="/daily This is the scheduled laptop run (run_mode: laptop) and the user's go-ahead for today. Do the whole daily loop, including the step 5b laptop part, send the briefing email, and commit if this folder is a git repo."

@@ -5,6 +5,40 @@ const list = document.getElementById("list");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const getDone = () => new Promise(r => chrome.storage.local.get({ submitted: [] }, d => r(d.submitted)));
 
+// Pause / Resume: a tap email to yourself ("Rolewise action: PAUSE" / "RESUME"), the same channel as the briefing's
+// buttons, so it controls the cloud run and the laptop run alike. status.json shows the state as of the last kit build.
+const tapEmail = (to, verb, note) => {
+  const q = new URLSearchParams({ view: "cm", to, su: `Rolewise action: ${verb}`,
+    body: `${verb}
+
+(From Rolewise Fill. ${note} Then hit send.)
+` });
+  chrome.tabs.create({ url: `https://mail.google.com/mail/?${q}` });
+};
+async function renderPause() {
+  const st = await fetch(chrome.runtime.getURL("kits/status.json")).then(r => r.json()).catch(() => null);
+  let asked = await new Promise(r => chrome.storage.local.get({ pauseAsked: "" }, d => r(d.pauseAsked)));
+  if (st && asked && st.paused === (asked === "PAUSE")) { asked = ""; chrome.storage.local.remove("pauseAsked"); }  // run caught up
+  const btn = document.getElementById("pause");
+  if (!st || !st.email) return;
+  const paused = asked ? asked === "PAUSE" : st.paused;
+  btn.hidden = false;
+  btn.textContent = paused ? "Resume" : "Pause";
+  btn.title = paused ? "Start Rolewise's daily runs again" : "Stop daily searching, preparing and briefings until you resume";
+  if (paused) {
+    const until = st.paused_until ? ` until ${st.paused_until}` : "";
+    document.getElementById("list").insertAdjacentHTML("afterbegin",
+      `<div class="paused"><b>Rolewise is paused${esc(until)}.</b> No new jobs, preparing or briefings. It still records replies to your applications. ${asked ? "Your request takes effect at the next run." : ""}</div>`);
+  } else if (asked === "RESUME") {
+    document.getElementById("list").insertAdjacentHTML("afterbegin", `<div class="paused">Resume requested: Rolewise restarts at its next run.</div>`);
+  }
+  btn.onclick = () => {
+    const verb = paused ? "RESUME" : "PAUSE";
+    tapEmail(st.email, verb, verb === "PAUSE" ? 'Add "until YYYY-MM-DD" on the first line if you like.' : "");
+    chrome.storage.local.set({ pauseAsked: verb }, () => { list.innerHTML = ""; render().then(renderPause); });
+  };
+}
+
 async function render() {
   const [index, done] = await Promise.all([
     fetch(chrome.runtime.getURL("kits/index.json")).then(r => r.json()), getDone()]);
@@ -37,7 +71,7 @@ async function render() {
   });
 }
 
-render().catch(() => {
+render().then(renderPause).catch(() => {
   list.innerHTML = `<p class="muted">No jobs yet. Rolewise builds them on your laptop's daily run
     (or run <code>scripts/build_kits.py</code>).</p>`;
 });

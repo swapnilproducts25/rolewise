@@ -43,3 +43,7 @@ citizenship:
     sanctioned_country_citizen_or_resident: "No"
     additional_citizenship_or_residency: "N/A"
     first_obtained_country: "N/A"
+
+# "How many years of experience do you have with X?" (LinkedIn Easy Apply asks these often).
+# Topic (as it appears in the question) -> whole years. Only what you state; unlisted topics are left for you.
+experience_years: {}             # e.g. {product management: 7, a/b testing: 6, sql: 5, marketplace: 4}

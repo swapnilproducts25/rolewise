@@ -119,8 +119,11 @@ def render(data):
     if data.get("dashboard_url"):
         parts.append(button_row([{"label": "Open dashboard", "url": data["dashboard_url"]}], date))
         text.append(f"Dashboard: {data['dashboard_url']}")
+    pause = mailto("PAUSE", "", date)
     parts.append(f'<div style="margin-top:14px;color:{MUTED};font-size:12px">Buttons open a pre-written email to yourself. '
-                 f'Hit send and the next Rolewise run acts on it.</div></div></div>')
+                 f'Hit send and the next Rolewise run acts on it. Need a break? '
+                 f'<a href="{pause}" style="color:{MUTED}">Pause Rolewise</a> (add "until YYYY-MM-DD" if you like).</div></div></div>')
+    text.append('Pause Rolewise: email yourself "Rolewise action: PAUSE".')
     return "".join(parts), "\n".join(text)
 
 

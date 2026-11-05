@@ -11,3 +11,5 @@ drive_folder_id: ""           # created by /onboard (a private "Rolewise" folder
 dashboard_url: ""             # optional
 github_repo: ""               # your private copy, e.g. yourname/rolewise
 timezone: ""                  # e.g. Europe/London
+paused: false                 # Pause from the add-on or the briefing; Resume the same way
+paused_until: ""              # optional date the pause ends by itself (YYYY-MM-DD)
