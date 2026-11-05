@@ -20,3 +20,8 @@ pilot/dist/
 Complete_LinkedIn*/
 profile/linkedin/
 LinkedIn Zipped folders/
+
+# Native-messaging launcher and manifest hold this laptop's paths
+extension/native/rolewise_host.bat
+extension/native/rolewise_host.sh
+extension/native/com.rolewise.fill.json

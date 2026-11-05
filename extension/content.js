@@ -374,7 +374,9 @@
     chrome.storage.local.get({ submitted: [] }, d => {
       if (!d.submitted.includes(id)) chrome.storage.local.set({ submitted: d.submitted.concat(id) });
     });
-    toast("Application submitted ✓ Rolewise has noted it: it leaves your queue now, and the tracker marks it applied on the next run.");
+    chrome.runtime.sendMessage({ type: "rolewise-native", payload: { action: "applied", id } }, res =>
+      toast(res && res.ok ? "Application submitted ✓ Marked applied in your tracker."
+        : "Application submitted ✓ It leaves your queue now; the tracker marks it applied on the next run."));
   }
   // A short confirmation on the site's thank-you page, so you know it was recorded.
   function toast(msg) {

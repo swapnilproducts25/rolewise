@@ -9,7 +9,15 @@ Set-Location $root
 New-Item -ItemType Directory -Force "logs" | Out-Null
 $stamp = Get-Date -Format "yyyy-MM-dd"
 $done = "logs\laptop-$stamp.done"
-if (Test-Path $done) { exit 0 }
+$topup = $false
+if (Test-Path $done) {
+  # Already ran today. Top up once if the Ready queue has run low and there are jobs worth preparing.
+  if (Test-Path "logs/topup-$stamp.done") { exit 0 }
+  $py0 = if (Test-Path ".venv\Scripts\python.exe") { ".venv\Scripts\python.exe" } else { "python" }
+  $low = & $py0 -c "import json,yaml;j=json.load(open('tracker/applications.json',encoding='utf-8'));p=yaml.safe_load(open('profile/preferences.yaml',encoding='utf-8')) or {};m=p.get('auto_prepare_min_fit',101);r=sum(x['status']=='ready' for x in j);b=sum(x['status']=='shortlisted' and ((x.get('fit_score') or 0)>=m or x.get('prep_day')) for x in j);print(int(r<3 and b>0))"
+  if ($low -ne "1") { exit 0 }
+  $topup = $true
+}
 
 $py = if (Test-Path ".venv\Scripts\python.exe") { ".venv\Scripts\python.exe" } else { "python" }
 $claude = if (Test-Path "$env:USERPROFILE\.local\bin\claude.exe") { "$env:USERPROFILE\.local\bin\claude.exe" } else { "claude" }
@@ -36,6 +44,10 @@ if ($paused -eq "1") {
 }
 
 if (-not (Get-Process chrome -ErrorAction SilentlyContinue)) { Start-Process "chrome.exe"; Start-Sleep -Seconds 15 }
+if ($topup) {
+  $prompt = "Rolewise TOP-UP run (laptop): the Ready queue is low. Run python scripts/check_open.py, then prepare up to 5 more jobs exactly as the daily skill's step 5 says (approved, prep_day due, or fit >= auto_prepare_min_fit; 2 per company per day), including PDFs and kits. No discovery, no briefing email. Commit."
+  $done = "logs/topup-$stamp.done"
+}
 $log = "logs\laptop-$stamp.md"
 & $claude -p $prompt --permission-mode auto --chrome *>&1 | Out-File -FilePath $log -Encoding utf8
 if ($LASTEXITCODE -eq 0) { New-Item -ItemType File $done -Force | Out-Null }

@@ -24,3 +24,7 @@ fit_scoring:
 daily_caps:
   applications: 10
   linkedin_job_views: 40
+
+# Jobs scoring at least this fit are prepared without waiting for a Prepare tap (8 a day, 2 per company);
+# below it they wait in Quick decide. Set 101 to always ask. 
+auto_prepare_min_fit: 75

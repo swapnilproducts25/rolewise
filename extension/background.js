@@ -48,4 +48,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     return true;   // keep the channel open for the async reply
   }
   if (msg && msg.type === "rolewise-options") chrome.runtime.openOptionsPage();
+  if (msg && msg.type === "rolewise-native") {   // the local helper (extension/native): updates Rolewise on this laptop
+    chrome.runtime.sendNativeMessage("com.rolewise.fill", msg.payload, res =>
+      reply(res || { ok: false, error: (chrome.runtime.lastError && chrome.runtime.lastError.message) || "helper not installed" }));
+    return true;
+  }
 });

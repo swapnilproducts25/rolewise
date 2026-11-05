@@ -309,7 +309,10 @@ def main(ids):
     (KITS / "index.json").write_text(json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8")
     (KITS / "rules.json").write_text(json.dumps(RULES, indent=1, ensure_ascii=False), encoding="utf-8")
     (KITS / "status.json").write_text(json.dumps({"paused": bool(USER.get("paused")), "paused_until": USER.get("paused_until") or "",
-                                                  "email": USER.get("email", "")}, indent=1), encoding="utf-8")
+                                                  "email": USER.get("email", ""),
+                                                  "interviews": [{"id": j["id"], "label": f"{j['company']} · {j['title']}"}
+                                                                 for j in jobs if j["status"] in ("screening", "interviewing")]},
+                                                 indent=1, ensure_ascii=False), encoding="utf-8")
     print(f"index: {len(index)} kits")
 
 
