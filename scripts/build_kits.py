@@ -12,6 +12,7 @@ Answers come from profile/answers.yaml; a job can override or add questions in a
       value: "..."
 """
 import json
+from datetime import date, timedelta
 import re
 import shutil
 import sys
@@ -239,6 +240,16 @@ def cv_context(folder, limit=2500):
     return out[:limit]
 
 
+def debriefed(job):
+    """Notes or a debrief saved since the last interview round (or in the last 10 days when the round date is unknown)."""
+    folder = ROOT / "applications" / job["id"]
+    dates = sorted(p.stem.split("-", 2)[-1].replace("notes-", "") for p in folder.glob("debrief*.md"))
+    if not dates:
+        return False
+    since = job.get("last_interview") or (date.today() - timedelta(days=10)).isoformat()
+    return dates[-1] >= since
+
+
 def jd_excerpt(folder, limit=3500):
     """The job description as plain text, for drafting answers in the form."""
     jd = folder / "jd.md"
@@ -310,7 +321,8 @@ def main(ids):
     (KITS / "rules.json").write_text(json.dumps(RULES, indent=1, ensure_ascii=False), encoding="utf-8")
     (KITS / "status.json").write_text(json.dumps({"paused": bool(USER.get("paused")), "paused_until": USER.get("paused_until") or "",
                                                   "email": USER.get("email", ""),
-                                                  "interviews": [{"id": j["id"], "label": f"{j['company']} · {j['title']}"}
+                                                  "interviews": [{"id": j["id"], "label": f"{j['company']} · {j['title']}",
+                                                                  "debriefed": debriefed(j)}
                                                                  for j in jobs if j["status"] in ("screening", "interviewing")]},
                                                  indent=1, ensure_ascii=False), encoding="utf-8")
     print(f"index: {len(index)} kits")

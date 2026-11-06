@@ -47,7 +47,9 @@ function renderInterviews(st) {
   list.insertAdjacentHTML("beforeend", `<h2>Interviews</h2>` + st.interviews.map(i => {
     const [co, role] = split(i.label);
     return `<div class="iv"><div class="row"><div class="job"><div class="co">${esc(co)}</div><div class="role">${esc(role)}</div></div>` +
-      `<button class="act" data-id="${esc(i.id)}" title="Jot rough notes after the call">Debrief</button></div></div>`;
+      (i.debriefed ? `<span class="done-tag" title="Debrief saved">✓ Debriefed</span>` +
+        `<button class="act quiet" data-id="${esc(i.id)}" title="Add notes from a later round">+</button>`
+        : `<button class="act" data-id="${esc(i.id)}" title="Jot rough notes after the call">Debrief</button>`) + `</div></div>`;
   }).join(""));
   list.querySelectorAll(".iv .act").forEach(b => b.onclick = () => {
     const wrap = b.closest(".iv");
@@ -105,6 +107,19 @@ document.getElementById("fillpage").onclick = async () => {
   else list.insertAdjacentHTML("afterbegin", `<p class="note">Open an application form first, then click Fill page.</p>`);
 };
 
-render().catch(() => {
+// Opening the menu fetches what the cloud run prepared and rebuilds the job packs (via the local helper), so the
+// queue is current without waiting for the laptop's idle run. At most every 2 minutes.
+async function refresh() {
+  const { lastSync = 0 } = await new Promise(r => chrome.storage.local.get({ lastSync: 0 }, r));
+  if (Date.now() - lastSync < 120000) return;
+  chrome.storage.local.set({ lastSync: Date.now() });
+  list.insertAdjacentHTML("afterbegin", `<p class="note" id="syncing">Refreshing…</p>`);
+  const res = await native({ action: "sync" });
+  document.getElementById("syncing")?.remove();
+  if (res.ok) await render();
+}
+
+render().then(refresh).catch(() => {
   list.innerHTML = `<p class="note">No jobs yet. They appear after the laptop's daily run.</p>`;
+  refresh();
 });

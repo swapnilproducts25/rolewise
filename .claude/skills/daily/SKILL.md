@@ -21,6 +21,9 @@ description: Run Rolewise's daily loop — act on the user's button taps, check 
    | `RESUME` | Set `paused: false`, clear `paused_until`, then run today's loop as normal. |
    **While paused** (`paused: true` and `paused_until` empty or in the future): after step 0, only run `track` silently so the tracker stays true (no discovery, no preparing, no briefing, no messages), commit and stop. When `paused_until` has passed, resume by itself and say so in the briefing.
    Quote back what you did in today's briefing ("Done from your taps: …").
+0b. **Debrief notes from the add-on** — for every `applications/<id>/debrief-notes-<date>.md` with no `debrief-<date>.md`
+   of the same or a later date, run the `debrief` skill on those notes (no questions back unless something essential is
+   missing) and say in the briefing that it's done. Never ask for a debrief that already has notes.
 1. **Track** — run the `track` workflow (since last run). Interviews and offers go to the top of the briefing. Any interview since the last run gets a debrief button.
 2. **Due items** — `tracker.py due`. For interviews in ≤3 days without `prep.md`, run `prep`.
 3. **Waiting on the user** — `tracker.py list --status ready`: each open item becomes one briefing card with the decision on its buttons (e.g. "Submit (band OK)" / "Skip").

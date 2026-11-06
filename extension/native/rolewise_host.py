@@ -68,6 +68,11 @@ def handle(msg):
     action = msg.get("action")
     if action == "ping":
         return {"ok": True}
+    if action == "sync":   # the add-on was opened: fetch what the cloud run prepared and rebuild the job packs
+        if (ROOT / ".git").exists():
+            subprocess.run(["git", "pull", "-q", "--rebase", "--autostash"], cwd=ROOT, capture_output=True, timeout=60)
+        r = subprocess.run([PY, str(ROOT / "scripts" / "build_kits.py")], cwd=ROOT, capture_output=True, text=True, timeout=120)
+        return {"ok": r.returncode == 0, "error": (r.stderr or "")[-200:]}
     job = msg.get("id", "")
     if action in ("skip", "applied", "debrief") and not SAFE_ID.match(job):
         return {"ok": False, "error": "unknown job"}
