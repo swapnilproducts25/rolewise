@@ -7,7 +7,7 @@ description: Find new job openings matching the user's profile across LinkedIn, 
 
 Read first: `profile/preferences.yaml`, `profile/master-cv.yaml` (skim), and `scripts/tracker.py list` to know what's already tracked.
 
-## 1. Search (aim for 20–40 fresh candidates, posted in the last ~7 days)
+## 1. Search (aim for 20–40 fresh candidates every day, posted in the last ~14 days; never skip a day)
 
 **First, LinkedIn job alerts from Gmail (safe: no LinkedIn browsing):** search `from:jobalerts-noreply@linkedin.com newer_than:3d -label:rolewise-done`. Each alert lists roles (title, company, location, a `linkedin.com/comm/jobs/view/<id>` link). For each: normalise the link to `https://www.linkedin.com/jobs/view/<id>`, skip if `tracker.py exists --url` finds it, score fit as below, and add it (`--source linkedin-alert`). Label the alert `rolewise-done`. Saved searches are set up by the user on LinkedIn (see coach notes); if no alerts arrive for 3 days, put a one-line reminder in the briefing.
 
