@@ -54,6 +54,16 @@ FEEDS = {
     "ashby": ("https://api.ashbyhq.com/posting-api/job-board/{}", lambda d: [
         (j["title"], ", ".join(filter(None, [j.get("location", "")] + [s.get("location", "") for s in j.get("secondaryLocations", [])]))
          + (" / remote" if j.get("isRemote") else ""), j["jobUrl"], j.get("publishedAt", "")) for j in d.get("jobs", [])]),
+    # SmartRecruiters (talabat/Delivery Hero and many Gulf and EU companies): public postings API, first 100 roles
+    "smartrecruiters": ("https://api.smartrecruiters.com/v1/companies/{}/postings?limit=100", lambda d: [
+        (j["name"], ", ".join(filter(None, [(j.get("location") or {}).get("city", ""), (j.get("location") or {}).get("country", "")]))
+         + (" / remote" if (j.get("location") or {}).get("remote") else ""),
+         f"https://jobs.smartrecruiters.com/{(j.get('company') or {}).get('identifier', '')}/{j['id']}", j.get("releasedDate", ""))
+        for j in d.get("content", [])]),
+    # Workable: the public careers widget feed
+    "workable": ("https://apply.workable.com/api/v1/widget/accounts/{}", lambda d: [
+        (j["title"], ", ".join(filter(None, [j.get("city", ""), j.get("country", "")])) + (" / remote" if j.get("telecommuting") else ""),
+         j.get("url") or j.get("shortlink", ""), j.get("published_on", "")) for j in d.get("jobs", [])]),
 }
 
 
