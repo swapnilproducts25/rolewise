@@ -179,6 +179,40 @@
     });
   }
 
+  // Type-to-search dropdowns that aren't React-select (Ashby: "Current Location", "How did you get to know us?"):
+  // open the list and click a wanted option; if none shows, type each wanted value and click the first match.
+  async function fillTypeahead(el, wanted) {
+    const options = () => {
+      const lb = el.getAttribute("aria-controls") && document.getElementById(el.getAttribute("aria-controls"));
+      return [...(lb || document).querySelectorAll("[role=option]")].filter(o => o.offsetParent !== null)
+        .map(o => ({ el: o, text: norm(o.innerText) }));
+    };
+    const type = v => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, v);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    const choose = async want => {
+      for (let i = 0; i < 10; i++) {
+        await sleep(300);
+        const hit = pick(options(), want);
+        if (hit) {
+          ["mousedown", "mouseup", "click"].forEach(t => hit.el.dispatchEvent(new MouseEvent(t, { bubbles: true })));
+          await sleep(300);
+          return true;
+        }
+      }
+      return false;
+    };
+    el.focus(); el.click();
+    if (await choose(wanted)) return true;
+    for (const w of asList(wanted).filter(w => !w.startsWith("*"))) {
+      type(w);
+      if (await choose([w])) return true;
+    }
+    type("");
+    return false;
+  }
+
   async function attachFiles(kit, report) {
     // Upload widgets (Homerun, Workable) can render after the text fields: wait up to 8s for them.
     for (let i = 0; i < (STEP_MODE ? 2 : 16) && !ROOT.querySelector("input[type=file]"); i++) await sleep(500);
@@ -272,9 +306,16 @@
       if (el.getAttribute("role") === "combobox") {
         if (!label || /^\+?\d|country code/i.test(label) && !/reside/i.test(label)) continue; // phone-country picker sets itself
         const box = el.closest(".select__container, .select-shell, [class*=select]");
-        if (box && box.querySelector("[class*=single-value], [class*=singleValue]")) continue;
+        if (el.value || box && box.querySelector("[class*=single-value], [class*=singleValue]")) continue;
         const v = lookup(label, kit);
         if (v === IGNORE) continue;
+        if (!el.id || !box) {   // type-to-search list; a location one wants a place name, not the long location answer
+          const place = /location|based|where .{0,20}(live|reside)/.test(low(label));
+          const want = place ? asList(kit.answers.city).concat(asList(kit.answers.residence_country)) : v;
+          if (want !== undefined && asList(want).length && await fillTypeahead(el, want)) report.filled.push(label);
+          else report.missing.push(label);
+          continue;
+        }
         let wanted = v;
         if (/location/.test(low(label)) && !/city/.test(low(label)) && kit.answers.location_choice) wanted = asList(v).concat(kit.answers.location_choice);
         if (wanted !== undefined && await fillReactSelect(el, wanted)) report.filled.push(label);
@@ -342,7 +383,7 @@
       } else if (el.getAttribute("role") === "combobox") {
         const box = el.closest(".select__container, .select-shell, [class*=select]");
         const has = box && box.querySelector("[class*=single-value], [class*=singleValue], [class*=multi-value], [class*=multiValue]");
-        if (!has && needed(el)) out.push(labelFor(el));
+        if (!has && !el.value && needed(el)) out.push(labelFor(el));
       } else if (el.type !== "checkbox" && !el.value && needed(el)) out.push(labelFor(el));
     }
     return out.filter(Boolean);
@@ -475,7 +516,7 @@
   // Free-text questions: a small "✨ Draft" bar right under the field. Claude writes the answer into the field from the
   // job and the CV facts in the kit (background.js, the user's own API key); Redraft / Shorter / More specific refine it.
   const draftable = label => !/^cv upload|consent|acknowledg|privacy/i.test(label) && label.length > 25;
-  const freeText = el => (el.tagName === "TEXTAREA" || (el.type === "text" && !el.closest("[class*=select]")))
+  const freeText = el => (el.tagName === "TEXTAREA" || (el.type === "text" && !el.closest("[class*=select]") && el.getAttribute("role") !== "combobox"))
     && !el.parentElement.querySelector("input[name=selectedLocation]");
   function draftBar(el, kit, question) {
     if (el.nextElementSibling && el.nextElementSibling.dataset && el.nextElementSibling.dataset.rolewiseBar) return;
@@ -551,9 +592,12 @@
     try { sessionStorage.setItem(filledKey(), "1"); sessionStorage.setItem("rolewise:lastKit", kitId); } catch (e) {}
     setBusy(false);
     const esc = x => String(x).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+    // "✨ Draft" is offered only for written answers, never for dropdowns or pickers.
+    const writable = new Set([...ROOT.querySelectorAll("textarea, input[type=text]")].filter(freeText).map(labelFor));
+    const draftable2 = x => draftable(x) && writable.has(x);
     show(`<b>${esc(kit.company)} · ${esc(kit.title)}</b>
       ${r.missing.length
-        ? `<div style="margin-top:8px;color:#9a5b00"><b>${r.missing.length} to answer yourself</b> (outlined in yellow)<br>${r.missing.map(x => "• " + esc(x.slice(0, 80)) + (draftable(x) ? " <span style=\"color:#1d3461\">(✨ Draft is under the field)</span>" : "")).join("<br>")}</div>`
+        ? `<div style="margin-top:8px;color:#9a5b00"><b>${r.missing.length} to answer yourself</b> (outlined in yellow)<br>${r.missing.map(x => "• " + esc(x.slice(0, 80)) + (draftable2(x) ? " <span style=\"color:#1d3461\">(✨ Draft is under the field)</span>" : "")).join("<br>")}</div>`
         : `<div style="margin-top:8px;color:#1f7a4d"><b>All ${r.filled.length} fields filled.</b></div>`}
       ${r.drafted.length ? `<div style="margin-top:8px;color:#3b6fd8"><b>${r.drafted.length} drafted from your CV</b> (outlined in blue): check the wording<br>${r.drafted.map(x => "✎ " + esc(x.slice(0, 80))).join("<br>")}</div>` : ""}
       <div style="margin-top:10px;font-weight:600">${STEP_MODE ? "Check this step, then click Next (or Submit on the last step). On the next step, click Fill this step again." : "Review the form, then click its Submit button."}</div>

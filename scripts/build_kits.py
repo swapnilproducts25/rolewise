@@ -93,7 +93,8 @@ RULES = [
     [r"remote location|work remotely|remote work|fully remote", "remote"],
     [r"hybrid|in-?office|on-?site|office location|days per week", "hybrid"],
     [r"previously (worked|been employed)|former employee|worked (for|at) .{0,40}before|ever worked|ever been employed|employed by", "previously_worked"],
-    [r"how did you (hear|find|learn)|where did you (hear|find)|source", "heard"],
+    [r"if (you )?(selected|chose|picked|answered) .{0,3}other|if other", None],   # follow-up box: only when "Other" was picked
+    [r"how did you (hear|find|learn|get to know|come across|discover)|get to know (us|about)|where did you (hear|find)|source", "heard"],
     [r"country (where|in which) you (currently )?reside|country of residence|country (do )?you live|what is your location|"
      r"which country|where do you (currently )?live", "residence_country"],
     [r"^school\b|university|institution", "school"],
