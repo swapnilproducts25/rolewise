@@ -405,7 +405,7 @@
 
   // ---------- UI ----------
   // Only on real application forms, never on confirmation/thank-you pages.
-  const DONE_TEXT = /thank you for (applying|your application)|application (has been|was) (received|submitted|sent)|your application was sent|and\.\.\.sent|we('| ha)ve received your application/i;
+  const DONE_TEXT = /thank you for (applying|your application)|application (has been|was) (successfully )?(received|submitted|sent)|successfully (submitted|applied)|your application was sent|and\.\.\.sent|we('| ha)ve received your application/i;
   function isApplicationPage() {
     if (LINKEDIN) return !!linkedinModal();
     if (/confirmation|thank-?you|submitted/i.test(location.pathname + location.search)) return false;
@@ -615,12 +615,26 @@
     panel.style.maxHeight = "45vh";
   }
 
+  let forceAgain = false;
+  const esc0 = x => String(x).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+  body.addEventListener("click", e => {
+    if (!e.target.closest("[data-rolewise-force]")) return;
+    e.preventDefault(); forceAgain = true; btn.click();
+  });
   btn.onclick = async () => {
     if (busy) return;
     if (alreadyFilled() && !confirm("Fill this form again? Anything you typed may be overwritten.")) return;
     try {
       const index = await loadIndex();
       const kit = matchKit(index);
+      // Already submitted (tracker or this browser): say so instead of filling the form a second time.
+      if (kit && !forceAgain && (!["shortlisted", "preparing", "ready"].includes(kit.status) || (await submittedIds()).includes(kit.id))) {
+        show(`<b>You've already applied to this job.</b><div style="margin-top:6px;color:#5b6880">It's marked ${esc0(kit.status === "ready" ? "applied" : kit.status)} in your tracker.</div>` +
+          `<div style="margin-top:10px;font-size:12px"><a href="#" data-rolewise-force style="color:#5b6880">Fill anyway</a></div>`);
+        setTab("APPLIED ✓", "#1f7a4d");
+        return;
+      }
+      forceAgain = false;
       if (kit) return run(kit.id);
       const page = low(location.hostname + " " + document.title + " " + (document.querySelector("h1") || {}).innerText);
       const company = k => low(k.label.split(" · ")[0]).replace(/\(.*?\)/g, "").trim();
