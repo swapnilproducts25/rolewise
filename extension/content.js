@@ -70,12 +70,22 @@
     if (fs) return labelFor(fs);
     const box = questionBox(el);
     const l = box && box.querySelector(".application-label, legend, [class*=label]:not(:has(input))");
-    return l ? norm(l.innerText.replace(/[*✱]/g, "")) : labelFor(el);
+    return l ? norm(labelText(l).replace(/[*✱]/g, "")) : labelFor(el);
+  }
+
+  // A label's own words only: forms like Lever wrap the whole control in the <label>, so its text would otherwise
+  // include every dropdown option ("What is your location? Afghanistan Albania …") and picker messages.
+  function labelText(l) {
+    if (!l) return "";
+    const c = l.cloneNode(true);
+    c.querySelectorAll("select, option, input, textarea, button, ul, [role=listbox], [role=option], [class*=dropdown], " +
+      "[class*=result], [class*=error], [class*=loading], [aria-live], .visually-hidden, [class*=filename], .application-field, [class*=upload]").forEach(n => n.remove());
+    return c.textContent;
   }
 
   function labelFor(el) {
     let t = "";
-    if (el.labels && el.labels.length) t = el.labels[0].innerText;
+    if (el.labels && el.labels.length) t = labelText(el.labels[0]);
     if (!t && el.getAttribute("aria-labelledby")) {
       t = el.getAttribute("aria-labelledby").split(" ").map(id => document.getElementById(id)?.innerText || "").join(" ");
     }
@@ -84,10 +94,10 @@
       const box = el.closest(".application-question")
         || el.closest("fieldset, .field, .select__container, [class*=field], [class*=question], li, .form-group");
       const l = box && box.querySelector("label, legend, .application-label, [class*=label]");
-      t = l ? l.innerText : "";
+      t = l ? labelText(l) : "";
     }
     if (!t) t = el.placeholder || el.name || el.id || "";
-    return norm(t.replace(/\*/g, ""));
+    return norm(t.replace(/[*✱]/g, ""));
   }
 
   // kits/rules.json (written by build_kits.py) overrides the built-in RULES, so new questions need no reload.
@@ -292,9 +302,12 @@
           }
           continue;   // never treat an option ("Yes", "He/him") as a question of its own
         }
-        const v = lookup(label, kit);
+        // A lone tick box under a question ("Previously employed by us?" with just "No"): answer by the question.
+        const q1 = questionLabel(el);
+        const byQ = lookup(label, kit) === undefined && q1 && q1 !== label;
+        const v = byQ ? lookup(q1, kit) : lookup(label, kit);
         if (v === IGNORE) continue;
-        if (!el.checked && v && asList(v).some(x => L.startsWith(low(x)))) { el.click(); report.filled.push(label); }
+        if (!el.checked && v && asList(v).some(x => L.startsWith(low(x)))) { el.click(); report.filled.push(byQ ? q1 : label); }
         continue;
       }
       if (el.tagName === "SELECT") {
@@ -634,14 +647,31 @@
     // "✨ Draft" is offered only for written answers, never for dropdowns or pickers.
     const writable = new Set([...ROOT.querySelectorAll("textarea, input[type=text]")].filter(freeText).map(labelFor));
     const draftable2 = x => draftable(x) && writable.has(x);
-    show(`<b>${esc(kit.company)} · ${esc(kit.title)}</b>
-      ${r.missing.length
-        ? `<div style="margin-top:8px;color:#9a5b00"><b>${r.missing.length} to answer yourself</b> (outlined in yellow)<br>${r.missing.map(x => "• " + esc(x.slice(0, 80)) + (draftable2(x) ? " <span style=\"color:#1d3461\">(✨ Draft is under the field)</span>" : "")).join("<br>")}</div>`
-        : `<div style="margin-top:8px;color:#1f7a4d"><b>All ${r.filled.length} fields filled.</b></div>`}
-      ${r.drafted.length ? `<div style="margin-top:8px;color:#3b6fd8"><b>${r.drafted.length} drafted from your CV</b> (outlined in blue): check the wording<br>${r.drafted.map(x => "✎ " + esc(x.slice(0, 80))).join("<br>")}</div>` : ""}
-      <div style="margin-top:10px;font-weight:600">${STEP_MODE ? "Check this step, then click Next (or Submit on the last step). On the next step, click Fill this step again." : "Review the form, then click its Submit button."}</div>
-      <details style="margin-top:8px;font-size:12px;color:#5b6880"><summary style="cursor:pointer">What was filled</summary>${r.filled.map(x => "✓ " + esc(x.slice(0, 70))).join("<br>")}</details>
+    // Questions in a few words: up to the first "?" (or sentence end), at most 60 characters.
+    const short = x => { const s = norm(x).match(/^.*?\?|^.*?\.(?=\s)|^.*/)[0]; return s.length > 60 ? s.slice(0, 57).trimEnd() + "…" : s; };
+    const item = (x, i, kind) => `<li style="margin:3px 0"><a href="#" data-rw-go="${kind}${i}" style="color:inherit;text-decoration:none;border-bottom:1px dotted">${esc(short(x))}</a>` +
+      (kind === "m" && draftable2(x) ? ` <span style="color:#3b6fd8;white-space:nowrap">✨ Draft below it</span>` : "") + `</li>`;
+    const list = (xs, kind) => `<ul style="margin:4px 0 0;padding-left:18px">${xs.map((x, i) => item(x, i, kind)).join("")}</ul>`;
+    const ticks = r.filled.filter(x => x.startsWith("☑")).length;
+    const plain = r.filled.filter(x => !x.startsWith("☑"));
+    const sec = (colour, title, html) => `<div style="margin-top:10px;padding:8px 10px;border-left:3px solid ${colour};background:#f7f9fc;border-radius:6px">` +
+      `<div style="font-weight:700;color:${colour}">${title}</div>${html}</div>`;
+    show(`<div style="font-weight:700">${esc(kit.company)}</div><div style="color:#5b6880;font-size:13px">${esc(kit.title)}</div>
+      ${r.missing.length ? sec("#9a5b00", `${r.missing.length} for you to answer`, list(r.missing, "m"))
+        : sec("#1f7a4d", "Everything is filled", "")}
+      ${r.drafted.length ? sec("#3b6fd8", `${r.drafted.length} written for you, check the wording`, list(r.drafted, "d")) : ""}
+      <div style="margin-top:10px;font-weight:600">${STEP_MODE ? "Check this step, then click Next. On the next step, click Fill this step again." : "Then review and click the form's Submit button."}</div>
+      <details style="margin-top:8px;font-size:12px;color:#5b6880"><summary style="cursor:pointer">${plain.length} answers filled${ticks ? ` · ${ticks} consent box${ticks > 1 ? "es" : ""} ticked` : ""}</summary>
+        <ul style="margin:4px 0 0;padding-left:18px">${plain.map(x => `<li>${esc(short(x))}</li>`).join("")}</ul></details>
       ${again}`);
+    // Click a question in the summary to jump to it on the form.
+    body.querySelectorAll("[data-rw-go]").forEach(a => a.onclick = e => {
+      e.preventDefault();
+      const [kind, i] = [a.dataset.rwGo[0], +a.dataset.rwGo.slice(1)];
+      const want = (kind === "m" ? r.missing : r.drafted)[i];
+      const el = [...ROOT.querySelectorAll("input, select, textarea")].find(c => labelFor(c) === want || questionLabel(c) === want);
+      if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); try { el.focus({ preventScroll: true }); } catch (err) {} }
+    });
     addDraftBars(kit, [...ROOT.querySelectorAll("textarea, input[type=text]")], r.missing.concat(r.drafted || []));
     // Get out of the way of the form's own Submit button: collapse to the edge tab, which keeps the status.
     if (r.missing.length) {

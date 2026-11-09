@@ -91,6 +91,7 @@ RULES = [
     [r"(require|need|will you).{0,60}sponsor|sponsorship (now|in the future)|visa sponsorship", "sponsorship"],
     [r"relocat", "relocate"],
     [r"remote location|work remotely|remote work|fully remote", "remote"],
+    [r"(interested in|prefer).{0,40}(office|location)s?\b.{0,30}(following|below)|following office locations|which (of our )?offices?", "job_office"],   # the job's own city
     [r"hybrid|in-?office|on-?site|office location|days per week", "hybrid"],
     [r"previously (worked|been employed)|former employee|worked (for|at) .{0,40}before|ever worked|ever been employed|employed by", "previously_worked"],
     [r"if (you )?(selected|chose|picked|answered) .{0,3}other|if other", None],   # follow-up box: only when "Other" was picked
@@ -184,7 +185,9 @@ def base_answers(profile, job):
         # Right to work only where answers.yaml says so (<region>_authorized: "Yes ..."); elsewhere the form flags it.
         **({"authorised": ["I am authorised", "Yes"],
             "sponsorship": [w.get(f"requires_sponsorship_{region}") or "No"]}
-           if str(w.get(f"{region}_authorized") or "").lower().startswith("yes") else {}),
+           if str(w.get(f"{region}_authorized") or "").lower().startswith("yes")
+           else {"sponsorship": [w[f"requires_sponsorship_{region}"]]} if w.get(f"requires_sponsorship_{region}") else {}),
+        "job_office": [city_of(job)] + job_country(job),
         "relocate": ["Yes"],
         "hybrid": ["Yes"], "previously_worked": ["No"],
         "heard": [std.get("how_did_you_hear", "Job Board"), "Job Board", "Company website", "Careers", "LinkedIn",
