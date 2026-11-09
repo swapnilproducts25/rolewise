@@ -66,7 +66,9 @@ def tailor(job_id):
     (folder / "cv.yaml").write_text(yaml.safe_dump(cv, sort_keys=False, allow_unicode=True, width=1000), encoding="utf-8")
     name = file_name("CV", job["company"])
     build(cv, folder / name, spec.get("variant"))  # variant drives the contact-line swap
-    subprocess.run([sys.executable, str(ROOT / "scripts" / "tracker.py"), "update", job_id, "--status", "preparing",
+    # A rebuild never moves a job back: only found/shortlisted jobs become "preparing"
+    status = ["--status", "preparing"] if job["status"] in ("found", "shortlisted") else []
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "tracker.py"), "update", job_id, *status,
                     "--set", f"cv_file=applications/{job_id}/{name}", "--note", "tailored CV built"], check=True,
                    capture_output=True)
     print(f"{job_id}: {name}")
