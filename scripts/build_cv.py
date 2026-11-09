@@ -162,15 +162,24 @@ def build(cv, out, variant=None):
     if extra and projects and projects[-1]["bullets"]:
         src = projects[-1]
         anchor = src["bullets"][-1]._p
+        # The blank line the template puts between project blocks, so the copy is spaced like the others
+        gap = src["h4"]._p.getprevious()
+        gap = gap if gap is not None and gap.tag == qn("w:p") and not "".join(gap.itertext()).strip() else None
         for e in extra:
             h4, bl = copy.deepcopy(src["h4"]._p), copy.deepcopy(src["bullets"][0]._p)
+            if gap is not None:
+                g = copy.deepcopy(gap)
+                anchor.addnext(g)
+                anchor = g
             anchor.addnext(h4)
             h4.addnext(bl)
             anchor = bl
             hp, bp = Paragraph(h4, src["h4"]._parent), Paragraph(bl, src["h4"]._parent)
-            name, _, rest = e["title"].partition(" - ")
+            # "Rolewise (github.com/…) - …": the name in capitals like the template's projects, the link as written
+            head, _, rest = e["title"].partition(" - ")
+            name, paren, link = head.partition(" (")
             meta = ", ".join(x for x in [e.get("dates"), e.get("location")] if x)
-            set_text(hp, f"{name.upper()}{' - ' + rest if rest else ''}\t{meta}")
+            set_text(hp, f"{name.upper()}{paren + link if paren else ''}{' - ' + rest if rest else ''}\t{meta}")
             projects.append({"title": None, "h4": hp, "bullets": [bp]})
             proj_ids.append(e["id"])
     for proj_id, block in zip(proj_ids, projects):
@@ -185,6 +194,12 @@ def build(cv, out, variant=None):
                 if old in (t.text or ""):
                     t.text = t.text.replace(old, new)
         set_bullets(block["bullets"][0], e.get("bullets"), block["bullets"])
+
+    # Optional name for the projects section (master-cv.yaml projects_heading), in place of the template's own.
+    if cv.get("projects_heading"):
+        for p in doc.paragraphs:
+            if p.style.name == "Heading 3" and p.text.strip() == "Product Development":
+                set_text(p, cv["projects_heading"])
 
     # Awards text and skills.
     P = doc.paragraphs
