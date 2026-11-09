@@ -40,6 +40,11 @@ Use the Chrome extension (the user's logged-in session) and WebSearch. Rotate so
   is not a tech/digital product role, or the work is about physical goods, culinary, retail category or brand
   management, score it as adjacent at most (fit <= 55) and say so in the summary, unless the user's targets include it.
 - Read the full JD for each survivor. Score with `fit_scoring` weights from preferences (0–100). Be honest: a director role at a 2000-person org needing 5+ yrs people management is a stretch — say so but don't auto-reject; flag as `stretch`.
+- **Pay** (the final score weighs it): if the JD states a salary, record it (`--set "salary=EUR 95-110k"`). If not,
+  look up a market estimate for that company, level and city (levels.fyi, Glassdoor; one search) and record the
+  midpoint in EUR per year: `--set salary_estimate_eur=105000`. Skip it rather than guess when nothing credible shows.
+- Score the role itself (`fit_base`): don't add or subtract for the user's location preference or pay; `scripts/fit.py`
+  adds those (Dubai/UAE first, Europe second, India third, then pay against the floor) after recording.
 - Work authorization: check `answers.yaml` / `preferences.yaml` for where the user can work without sponsorship; elsewhere, still include but note "sponsorship?".
 
 ## 3. Record
@@ -48,7 +53,7 @@ For each job with score ≥ `thresholds.shortlist`:
 .venv/Scripts/python scripts/tracker.py add --company "..." --title "..." --location "..." --work-mode hybrid \
   --url "<canonical job URL>" --source linkedin --fit 78 --summary "<1 line: why it fits / main gap>" --status shortlisted
 ```
-For LinkedIn jobs, also record how they're applied to: `--set easy_apply=yes` when the alert or job page says "Easy Apply", `easy_apply=no` when it sends you to the company's site (then set `apply_url` to that site if you can see it). Save the JD to `applications/<id>/jd.md` (title, company, location, URL, date seen, full text). Jobs below threshold: don't add (keep the tracker clean) unless notable.
+For LinkedIn jobs, also record how they're applied to: `--set easy_apply=yes` when the alert or job page says "Easy Apply", `easy_apply=no` when it sends you to the company's site (then set `apply_url` to that site if you can see it). Save the JD to `applications/<id>/jd.md` (title, company, location, URL, date seen, full text). Then run `.venv/Scripts/python scripts/fit.py` (final fit = role fit + location preference + pay). Jobs below threshold: don't add (keep the tracker clean) unless notable.
 
 ## 4. Report to the user
 A compact table sorted by fit: fit | company | role | location/mode | posted | applicants | Easy Apply? | one-line why/gap.

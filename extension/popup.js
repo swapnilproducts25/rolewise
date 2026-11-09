@@ -15,7 +15,9 @@ const TAGS = {
   "linkedin": ["LinkedIn", "If LinkedIn shows Easy Apply, use it; otherwise apply on the company site with Fill page"],
 };
 
-const tapEmail = (to, subject, body) => {
+const GROUP_ORDER = ["Dubai / UAE", "Remote", "Europe", "India", "US", "Other"];   // Remote: workable from Dubai
+
+const tapEmail =(to, subject, body) => {
   const q = new URLSearchParams({ view: "cm", to, su: `Rolewise action: ${subject}`,
     body: `${subject}\n\n${body}(From Rolewise Fill. Hit send; the next Rolewise run picks it up.)\n` });
   chrome.tabs.create({ url: `https://mail.google.com/mail/?${q}` });
@@ -74,16 +76,22 @@ async function render() {
   const byFit = (a, b) => (b.fit || 0) - (a.fit || 0);
   const ready = index.filter(k => k.status === "ready" && k.urls.length && !done.includes(k.id)).sort(byFit);
   const coming = index.filter(k => k.status === "preparing").length;
-  let html = `<h2>Ready to submit · ${ready.length}</h2>`;
-  html += ready.length ? ready.map(k => {
+  const row = k => {
     const [co, role] = split(k.label);
     const tag = TAGS[k.mode];
-    return `<div class="row"><div class="job" data-url="${esc(k.urls[0])}" title="Open the form; it fills itself">` +
+    const fitHint = ["Fit score", k.location, k.salary_eur ? `pay ~€${Math.round(k.salary_eur / 1000)}k/yr` : ""].filter(Boolean).join(" · ");
+    return `<div class="row"><div class="job" data-url="${esc(k.urls[0])}" title="${esc(k.location || "Open the form; it fills itself")}">` +
       `<div class="co">${esc(co)}${tag ? `<span class="tag" title="${esc(tag[1])}">${tag[0]}</span>` : ""}</div>` +
       `<div class="role">${esc(role)}</div></div>` +
-      (k.fit ? `<span class="fit" title="Fit score">${k.fit}</span>` : "") +
+      (k.fit ? `<span class="fit" title="${esc(fitHint)}">${k.fit}</span>` : "") +
       `<button class="x" data-id="${esc(k.id)}" title="Skip this job">✕</button></div>`;
-  }).join("") : `<p class="note">Nothing ready. New jobs arrive with the morning run.</p>`;
+  };
+  // Grouped by location, in the order you prefer them; best fit first inside each group.
+  const groups = [...new Set(GROUP_ORDER.concat(ready.map(k => k.group || "Other")))]
+    .map(g => [g, ready.filter(k => (k.group || "Other") === g)]).filter(([, ks]) => ks.length);
+  let html = ready.length
+    ? groups.map(([g, ks]) => `<h2>${esc(g)} · ${ks.length}</h2>` + ks.map(row).join("")).join("")
+    : `<h2>Ready to submit</h2><p class="note">Nothing ready. New jobs arrive with the morning run.</p>`;
   if (coming) html += `<p class="note">${coming} more being prepared</p>`;
   list.innerHTML = html;
   list.querySelectorAll(".job[data-url]").forEach(a => a.onclick = () => chrome.tabs.create({ url: a.dataset.url + "#rolewise-fill" }));

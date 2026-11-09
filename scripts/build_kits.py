@@ -181,7 +181,11 @@ def base_answers(profile, job):
         "salary": salary_answer, "notice": avail.get("notice_period", "Immediately available"),
         "start_date": avail.get("start_date", "Immediately"),
         # choice answers: list of option prefixes to try, in order
-        "authorised": ["I am authorised", "Yes"], "sponsorship": ["No"], "relocate": ["Yes"],
+        # Right to work only where answers.yaml says so (<region>_authorized: "Yes ..."); elsewhere the form flags it.
+        **({"authorised": ["I am authorised", "Yes"],
+            "sponsorship": [w.get(f"requires_sponsorship_{region}") or "No"]}
+           if str(w.get(f"{region}_authorized") or "").lower().startswith("yes") else {}),
+        "relocate": ["Yes"],
         "hybrid": ["Yes"], "previously_worked": ["No"],
         "heard": [std.get("how_did_you_hear", "Job Board"), "Job Board", "Company website", "Careers", "LinkedIn",
                   "Other", "*any*"],   # low-stakes: if none fits, the first real option
@@ -311,13 +315,21 @@ def main(ids):
             return "company-site"
         return "linkedin" if on_linkedin else ""   # not known yet: the add-on says how to tell
     mode = {j["id"]: apply_mode(j) for j in jobs}   # the tracker is the truth: applied/skipped jobs leave the queue
+    by_id = {j["id"]: j for j in jobs}
+    # Queue groups, in the user's order of preference (preferences.yaml fit_scoring.location_points)
+    GROUP = {"uae": "Dubai / UAE", "eu": "Europe", "uk": "Europe", "in": "India", "us": "US"}
+    def group(j):
+        return "Remote" if re.search(r"\bremote\b", j.get("location") or "", re.I) and region_of(j) not in GROUP else GROUP.get(region_of(j), "Other")
     for path in sorted(KITS.glob("*.json")):
         if path.name in ("index.json", "rules.json", "status.json"):
             continue
         k = json.loads(path.read_text(encoding="utf-8"))
         index.append({"id": k["id"], "label": f"{k['company']} · {k['title']}", "urls": k["urls"],
-                      "status": status.get(k["id"], k.get("status")), "fit": k.get("fit"),
-                      "mode": mode.get(k["id"], "")})
+                      "status": status.get(k["id"], k.get("status")),
+                      "fit": (by_id.get(k["id"]) or {}).get("fit_score", k.get("fit")),
+                      "mode": mode.get(k["id"], ""), "group": group(by_id.get(k["id"]) or {}),
+                      "location": (by_id.get(k["id"]) or {}).get("location") or "",
+                      "salary_eur": (by_id.get(k["id"]) or {}).get("salary_eur")})
     (KITS / "index.json").write_text(json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8")
     (KITS / "rules.json").write_text(json.dumps(RULES, indent=1, ensure_ascii=False), encoding="utf-8")
     (KITS / "status.json").write_text(json.dumps({"paused": bool(USER.get("paused")), "paused_until": USER.get("paused_until") or "",

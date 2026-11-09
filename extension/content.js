@@ -58,7 +58,10 @@
     [/current location|where are you (currently )?(based|located)|^location\b|city of residence|^city\b/, "location"],
     [/full name|^name\b|your name/, "full_name"],
   ];
-  const CONSENT = /consent|agree|acknowledg|privacy|data (protection|transfer|retention|processing)|point of data|terms|retain my data|gdpr/;
+  const DIAL = [["+353", ["Ireland"]], ["+971", ["United Arab Emirates", "UAE"]], ["+44", ["United Kingdom", "UK"]],
+    ["+91", ["India"]], ["+49", ["Germany"]], ["+31", ["Netherlands"]], ["+34", ["Spain"]], ["+351", ["Portugal"]],
+    ["+33", ["France"]], ["+966", ["Saudi Arabia"]], ["+1", ["United States", "Canada"]]];
+  const CONSENT =/consent|agree|acknowledg|privacy|data (protection|transfer|retention|processing)|point of data|terms|retain my data|gdpr/;
 
   const questionBox = el => el.closest(".application-question") || el.closest("[class*=question], .field, .form-group")
     || el.closest("li");
@@ -303,6 +306,25 @@
         else if (el.required) report.missing.push(label);
         continue;
       }
+      // Phone with its own country picker (Greenhouse): pick the country from the number's dial code, then type the
+      // number without it.
+      const phoneBox = el.closest(".phone-input, [class*=phone-input]");
+      if (phoneBox && el.getAttribute("role") === "combobox") {
+        const box = el.closest(".select__container, .select-shell, [class*=select]");
+        if (box && box.querySelector("[class*=single-value], [class*=singleValue]")) continue;
+        const dial = DIAL.find(([code]) => String(kit.answers.phone || "").replace(/\s/g, "").startsWith(code));
+        if (dial && await fillReactSelect(el, dial[1])) report.filled.push("Phone country");
+        else report.missing.push(label);
+        continue;
+      }
+      if (phoneBox && el.type === "tel") {
+        if (el.value && !/^\+?\d{1,4}\s*$/.test(el.value.trim())) continue;
+        const raw = String(kit.answers.phone || "");
+        const dial = DIAL.find(([code]) => raw.replace(/\s/g, "").startsWith(code));
+        setNative(el, dial ? raw.replace(/\s/g, "").slice(dial[0].length).replace(/^(\d{2})(\d{3})(\d+)$/, "$1 $2 $3") : raw);
+        report.filled.push("Phone");
+        continue;
+      }
       if (el.getAttribute("role") === "combobox") {
         if (!label || /^\+?\d|country code/i.test(label) && !/reside/i.test(label)) continue; // phone-country picker sets itself
         const box = el.closest(".select__container, .select-shell, [class*=select]");
@@ -415,7 +437,18 @@
   function markSubmitted() {
     let id = null;
     try { id = sessionStorage.getItem("rolewise:lastKit"); } catch (e) {}
-    if (!id || !DONE_TEXT.test((document.body && document.body.innerText || "").slice(0, 4000))) return;
+    if (!id) return;
+    // Done when the page says so, or when you clicked the form's Submit button and the form then went away
+    // (a validation error keeps the form on screen, so that never counts).
+    let clicked = 0;
+    try { clicked = +sessionStorage.getItem("rolewise:submitClicked") || 0; } catch (e) {}
+    const text = document.body && document.body.innerText || "";
+    const formShown = [...document.querySelectorAll("input[type=file], #first_name, input[type=email], input[autocomplete=email], input[name*=email i]")]
+      .some(e => e.offsetParent !== null);
+    const said = DONE_TEXT.test(text.slice(0, 4000)) || (!LINKEDIN && !formShown && DONE_TEXT.test(text));
+    const gone = !LINKEDIN && !formShown && Date.now() - clicked < 10 * 60000;
+    if (!said && !gone) return;
+    try { sessionStorage.removeItem("rolewise:submitClicked"); } catch (e) {}
     try { sessionStorage.removeItem("rolewise:lastKit"); } catch (e) {}
     chrome.storage.local.get({ submitted: [] }, d => {
       if (!d.submitted.includes(id)) chrome.storage.local.set({ submitted: d.submitted.concat(id) });
@@ -496,10 +529,16 @@
       if (want && !ui.isConnected) { document.body.appendChild(ui); refreshState(); }
       if (!want && ui.isConnected) ui.remove();
       // A confirmation page after Rolewise filled a form here: drop that job from the Ready queue.
-      if (!want) markSubmitted();
+      markSubmitted();
       // Opened from the briefing's "Open & fill" button (#rolewise-fill): fill once, automatically.
       if (want && !STEP_MODE && !autoDone && /(rolewise|jobify)-fill/.test(location.hash) && !alreadyFilled()) { autoDone = true; btn.click(); }
     };
+    // Note when you click the form's own Submit button on a page Rolewise filled.
+    document.addEventListener("click", e => {
+      const b = e.target.closest && e.target.closest("button, input[type=submit], [role=button]");
+      if (!b || ui.contains(b) || !/submit|send application|apply now|^apply$/i.test(norm(b.innerText || b.value || ""))) return;
+      try { if (sessionStorage.getItem("rolewise:lastKit")) sessionStorage.setItem("rolewise:submitClicked", String(Date.now())); } catch (err) {}
+    }, true);
     setTimeout(sync, 2500);
     setInterval(sync, 2000);
   }
