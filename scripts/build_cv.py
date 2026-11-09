@@ -195,11 +195,64 @@ def build(cv, out, variant=None):
                     t.text = t.text.replace(old, new)
         set_bullets(block["bullets"][0], e.get("bullets"), block["bullets"])
 
-    # Optional name for the projects section (master-cv.yaml projects_heading), in place of the template's own.
+    # Dates flush right on every role and project line: one right-aligned tab stop at the text edge (the template's
+    # lines each had their own left tab, so the dates sat at different places).
+    sect = doc.sections[0]._sectPr
+    page_w = float(sect.find(qn("w:pgSz")).get(qn("w:w")))
+    mar = sect.find(qn("w:pgMar"))
+    edge = str(int(page_w - float(mar.get(qn("w:left"))) - float(mar.get(qn("w:right")))))
+    for p in doc.paragraphs:
+        if p.style.name != "Heading 4" or "\t" not in p.text:
+            continue
+        ppr = p._p.get_or_add_pPr()
+        for old in ppr.findall(qn("w:tabs")):
+            ppr.remove(old)
+        tabs = ppr.makeelement(qn("w:tabs"), {})
+        tabs.append(tabs.makeelement(qn("w:tab"), {qn("w:val"): "right", qn("w:pos"): edge}))
+        ppr.insert(1 if ppr.find(qn("w:pStyle")) is not None else 0, tabs)
+        # Exactly one tab between the name and the dates: drop extra tabs (tab elements or tab characters) and the
+        # spaces next to it.
+        found = skipping = False
+        for el in list(p._p.iter(qn("w:t"), qn("w:tab"))):
+            if el.tag == qn("w:tab"):
+                if el.getparent().tag == qn("w:tabs"):
+                    continue   # a tab stop definition, not a tab
+                if found:
+                    el.getparent().remove(el)
+                found = skipping = True
+                continue
+            kept = ""
+            for ch in el.text or "":
+                if ch == "\t":
+                    if not found:
+                        kept, found = kept.rstrip(" ") + "\t", True
+                    skipping = True
+                elif skipping and ch == " ":
+                    continue
+                else:
+                    skipping = False
+                    kept += ch
+            if not found:
+                kept = kept.rstrip(" ") if "\t" in (el.text or "") else kept
+            el.text = kept
+
+    # Optional projects section heading (master-cv.yaml projects_heading): styled like EXPERIENCE (capitals and the
+    # rule line under it), in place of the template's small "Product Development" sub-heading.
     if cv.get("projects_heading"):
-        for p in doc.paragraphs:
-            if p.style.name == "Heading 3" and p.text.strip() == "Product Development":
-                set_text(p, cv["projects_heading"])
+        ps = doc.paragraphs
+        sub = next((p for p in ps if p.style.name == "Heading 3" and p.text.strip() == "Product Development"), None)
+        exp = next((p for p in ps if p.style.name == "Heading 2" and p.text.strip().upper() == "EXPERIENCE"), None)
+        if sub is not None and exp is not None:
+            head = copy.deepcopy(exp._p)
+            sub._p.addprevious(head)
+            set_text(Paragraph(head, sub._parent), cv["projects_heading"].upper())
+            rule = exp._p.getnext()
+            if rule is not None and rule.findall(".//" + qn("w:drawing")) + rule.findall(".//" + qn("w:pict")):
+                line = copy.deepcopy(rule)
+                for k, dp in enumerate(line.iter("{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}docPr")):
+                    dp.set("id", str(9000 + k))   # drawing ids must be unique in the document
+                head.addnext(line)
+            sub._p.getparent().remove(sub._p)
 
     # Awards text and skills.
     P = doc.paragraphs
