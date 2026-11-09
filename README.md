@@ -11,6 +11,10 @@ Free and open source. Your data stays in your own accounts.
   Each role is scored for fit with a one-line reason; closed postings and roles you already applied to are dropped.
 - **Prepares every good match without waiting for you**: a tailored CV (only facts from your own CV, in one of three
   clean styles), a cover letter, and answers to the form's own questions, ready in a queue.
+- **Two agents for every CV**: a writer tailors it, and a separate reviewer checks it against your own CV and the job
+  (true facts only, nothing important dropped, no vague or nit-picky bullets). A weak tailoring is never used; your
+  own CV goes out instead.
+- **Ranks jobs your way**: fit score includes your preferred locations, in order, and the pay on offer.
 - **Drafts cover letters and form answers** in plain, human language.
 - **Finds warm referrals** in your own LinkedIn connections at the companies you apply to (optional data import),
   and drafts the message for you to send.

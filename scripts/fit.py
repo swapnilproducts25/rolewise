@@ -23,7 +23,22 @@ from build_kits import REGION_WORDS, region_of  # noqa: E402
 TRACKER = ROOT / "tracker" / "applications.json"
 PREFS = yaml.safe_load((ROOT / "profile" / "preferences.yaml").read_text(encoding="utf-8")) or {}
 SCORING = PREFS.get("fit_scoring") or {}
-LOCATION_POINTS = SCORING.get("location_points") or {"uae": 15, "eu": 10, "uk": 10, "remote": 12, "in": 5, "other": 3}
+
+
+def default_location_points():
+    """No location_points in preferences: the user's `locations`, in their order, get 15, 10, 5, 3…; remote 12."""
+    points, steps = {"remote": 12, "other": 3}, [15, 10, 5, 3]
+    for i, loc in enumerate(PREFS.get("locations") or []):
+        words = " ".join([str(loc.get("name", ""))] + [str(p) for p in loc.get("places") or []]).lower()
+        for region, keys in REGION_WORDS.items():
+            if region not in points and any(re.search(r"\b" + re.escape(k) + r"\b", words) for k in keys):
+                points[region] = steps[min(i, len(steps) - 1)]
+    if "eu" in points:
+        points.setdefault("uk", points["eu"])
+    return points
+
+
+LOCATION_POINTS = SCORING.get("location_points") or default_location_points()
 SALARY_MAX = SCORING.get("salary", 10)
 OPEN = {"found", "shortlisted", "preparing", "ready"}
 

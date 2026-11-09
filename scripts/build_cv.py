@@ -155,7 +155,25 @@ def build(cv, out, variant=None):
         set_text(block["title"], e["title"])
         set_bullets(block["bullets"][0], e.get("bullets"), block["bullets"])
     proj_by_id = {e["id"]: e for e in cv.get("projects", [])}
-    for proj_id, block in zip(TEMPLATE_PROJECTS, projects):
+    # A project the template has no block for (added to the CV later): copy the last project block for it.
+    from docx.text.paragraph import Paragraph
+    proj_ids = list(TEMPLATE_PROJECTS)
+    extra = [e for e in visible(cv.get("projects")) if e["id"] not in proj_ids]
+    if extra and projects and projects[-1]["bullets"]:
+        src = projects[-1]
+        anchor = src["bullets"][-1]._p
+        for e in extra:
+            h4, bl = copy.deepcopy(src["h4"]._p), copy.deepcopy(src["bullets"][0]._p)
+            anchor.addnext(h4)
+            h4.addnext(bl)
+            anchor = bl
+            hp, bp = Paragraph(h4, src["h4"]._parent), Paragraph(bl, src["h4"]._parent)
+            name, _, rest = e["title"].partition(" - ")
+            meta = ", ".join(x for x in [e.get("dates"), e.get("location")] if x)
+            set_text(hp, f"{name.upper()}{' - ' + rest if rest else ''}\t{meta}")
+            projects.append({"title": None, "h4": hp, "bullets": [bp]})
+            proj_ids.append(e["id"])
+    for proj_id, block in zip(proj_ids, projects):
         e = proj_by_id.get(proj_id)
         if e is None or e.get("hide"):
             for p in [block["h4"], *block["bullets"]]:

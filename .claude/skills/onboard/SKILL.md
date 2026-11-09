@@ -22,7 +22,9 @@ Google Drive and tell you the file name (read it with the Drive connector); or p
 Write `profile/master-cv.yaml` in the schema of `scripts/render_cv.py` (name, headline, contact, summary,
 experience[{id, title, company, location, dates, bullets[{id, text}]}], projects, education, awards,
 skills[{label, items[]}], plus `variants` only if they use a different contact line per region). Rules: copy facts
-exactly; **bold** the lead phrase and the key result of each bullet; no new numbers, tools or claims. Then show a
+exactly; **bold** the lead phrase and the key result of each bullet; no new numbers, tools or claims. Add `anchors:`
+(the 3-4 facts every tailored summary must keep: years and companies, the biggest result, a signature strength) and
+`flagship: true` on their 5-7 strongest bullets; the CV agents (`.claude/agents/cv-writer.md`, `cv-reviewer.md`) rely on them. Then show a
 6-line summary (name, latest role, years, top 3 strengths you see) and ask "Anything wrong or missing?". Fix, move on.
 
 ## 2. Ten questions: tap, don't type
@@ -75,7 +77,8 @@ Close the round with: "That's all I need. You can change any of this any time: j
 ## 4. The daily run
 - **Web/phone**: create a daily cloud routine. Prefer doing it yourself with `/schedule` (or the RemoteTrigger tool):
   name "Rolewise Daily", 08:00 in their timezone (convert to UTC and confirm), this repo, the Gmail and Google Drive
-  connectors, prompt:
+  connectors, allowed tools Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch and **Agent** (the CV writer and
+  reviewer agents), prompt:
   > Run Rolewise's /daily loop for the user in profile/user.yaml. Start with `git pull --rebase` and
   > `pip install python-docx pyyaml`. Follow CLAUDE.md hard rules: never submit an application or send any message
   > except the daily briefing to the user's own email. Prepare jobs (CV, cover letter, answers) and send the briefing.
