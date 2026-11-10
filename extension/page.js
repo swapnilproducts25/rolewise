@@ -46,9 +46,21 @@
     const band = /^\*band:(\d+)\*$/.exec(w);
     if (band) return bandPick(opts, o => o.label, +band[1]);
     if (w === "*any*") return opts.find(o => !PLACEHOLDER.test(String(o.label).trim()));
-    return opts.find(o => low(o.label).startsWith(low(w)))
-      || (low(w).length >= 6 ? opts.find(o => low(o.label).includes(low(w))) : undefined);
+    // Exact, then prefix, then all of its words, then substring; a one-word value matching several options
+    // ("Asian" → "Asian - Chinese" / "Asian - Indian") is ambiguous and skipped (same rule as content.js).
+    const W = low(w), ws = wordsOf(w);
+    const exact = opts.find(o => low(o.label) === W);
+    if (exact) return exact;
+    for (const test of [o => low(o.label).startsWith(W),
+                        o => ws.length > 1 && ws.every(x => wordsOf(o.label).includes(x)),
+                        o => W.length >= 6 && low(o.label).includes(W)]) {
+      const hits = opts.filter(test);
+      if (hits.length === 1 || (hits.length > 1 && ws.length > 1)) return hits[0];
+      if (hits.length > 1) return undefined;
+    }
+    return undefined;
   };
+  const wordsOf = s => low(s).match(/[a-z0-9]+/g) || [];
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // Paginated async selects return {options, hasMore}; classic ones call back with an array.

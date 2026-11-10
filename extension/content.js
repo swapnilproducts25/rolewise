@@ -161,13 +161,29 @@
     return hit ? hit.it : null;
   }
   const PLACEHOLDER = /^(select|choose|please|--|—|$)/i;
+  // One wanted value against the options: exact, then prefix, then all of its words ("Asian (Indian)" finds
+  // "Asian - Indian"), then substring. A one-word value that fits several options ("Asian" → "Asian - Chinese" and
+  // "Asian - Indian") is ambiguous: it is skipped, so a more specific value wins or the question is flagged.
+  const wordsOf = s => low(s).match(/[a-z0-9]+/g) || [];
+  function matchOne(texts, w) {
+    const W = low(w), ws = wordsOf(w);
+    const exact = texts.find(t => low(t.text) === W);
+    if (exact) return exact;
+    for (const test of [t => low(t.text).startsWith(W),
+                        t => ws.length > 1 && ws.every(x => wordsOf(t.text).includes(x)),
+                        t => W.length >= 6 && low(t.text).includes(W)]) {
+      const hits = texts.filter(test);
+      if (hits.length === 1 || (hits.length > 1 && ws.length > 1)) return hits[0];
+      if (hits.length > 1) return null;
+    }
+    return null;
+  }
   const pick = (texts, wanted) => {
     for (const w of asList(wanted)) {
       const band = /^\*band:(\d+)\*$/.exec(w);
       const hit = band ? bandPick(texts, t => t.text, +band[1])
         : w === "*any*" ? texts.find(t => !PLACEHOLDER.test(t.text.trim()))
-        : texts.find(t => low(t.text).startsWith(low(w)))
-          || (low(w).length >= 6 ? texts.find(t => low(t.text).includes(low(w))) : undefined);
+        : matchOne(texts, w);
       if (hit) return hit;
     }
     return null;
@@ -632,8 +648,10 @@
     await loadRules();
     const kit = await kitFile(`kits/${kitId}.json`);
     let r = await fill(kit);
-    await sleep(STEP_MODE ? 0 : 4000);
-    if (!STEP_MODE) {
+    // A second pass only when something is still open (fields that appear after the first answers or uploads).
+    if (!STEP_MODE && r.missing.length) {
+      body.innerHTML = `Almost done: checking ${r.missing.length} field${r.missing.length > 1 ? "s" : ""} again…`;
+      await sleep(1500);
       const again2 = await fill(kit, true);
       again2.filled = [...new Set(r.filled.concat(again2.filled))];
       again2.missing = [...new Set(r.missing.concat(again2.missing))].filter(m => !again2.filled.includes(m)
