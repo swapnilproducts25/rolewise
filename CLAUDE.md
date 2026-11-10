@@ -20,6 +20,7 @@ field use. If `profile/user.yaml` has no name yet, run `/onboard` first.
 | `tracker/applications.json` | Every job ever considered. Edit only via `scripts/tracker.py`. |
 | `applications/<id>/` | Per-job folder: `jd.md`, `fit.md`, `cv.yaml`, CV/letter files, `answers.md`, `prep.md`. |
 | `coach/` | Daily briefings, weekly reviews, `learnings.md`. |
+| Rolewise Inbox (`inbox_url` in user.yaml) | The user's private page: ready jobs with one-tap Applied / Later / Skip / Pause (`inbox/index.html`, `scripts/inbox.py`). Taps wait in its database until the next run applies them. |
 
 Python: use `.venv/Scripts/python` (Windows) or `.venv/bin/python` (Mac) if it exists, otherwise `python`.
 If this folder is a git repo with a remote (`run_mode: cloud`), start each run with `git pull --rebase` and end runs
@@ -28,7 +29,7 @@ that changed files with a commit and `git push`.
 ## Skills (workflows)
 - `/onboard`: first-time setup (CV, ~10 questions, connections, daily run).
 - `/profile`: view or change anything Rolewise knows, in plain words.
-- `/daily`: the daily loop: act on taps → track → discover → prepare → briefing email.
+- `/daily`: the daily loop: act on Inbox taps → track → discover → prepare → briefing email.
 - `/discover`: find and score new jobs. `/tailor <id>`: tailor the CV if it helps. `/apply <id>`: prepare the
   application kit; the user opens the form and Rolewise Fill fills it.
 - `/track`: read Gmail for updates. `/prep <id>`: interview pack. `/debrief <id>`: capture an interview.

@@ -64,6 +64,11 @@ Close the round with: "That's all I need. You can change any of this any time: j
 - **Gmail and Google Drive**: check the connectors are on (claude.ai → Settings → Connectors). If not, give the
   one-line instruction and wait. Test: search their inbox for one recent email; create a private "Rolewise" folder
   in Drive and save its id to `user.yaml` (`drive_folder_id`). Never share it.
+- **Rolewise Inbox** (their one-tap page; no setup for them): publish `inbox/index.html` with the Artifact tool
+  (icon `inbox`, capabilities `{"db": {"rules": [{"path": "", "read": "admin", "write": "owner"}]}}`, so only they can
+  read or change it), save the URL as `inbox_url` in `user.yaml`, then `python scripts/inbox.py export` and `ArtifactData`
+  `set` collection `queue`, doc `current`, `file_path` `inbox/current.json`. Tell them: "Bookmark this. Your ready jobs
+  live here with Applied, Later and Skip buttons; the briefing links to it." It stays private (never share it).
 - **LinkedIn job alerts** (recommended, 2 min, they do it in LinkedIn): suggest 2–4 saved searches from Q6/Q7 with
   "Daily, Email". Rolewise reads the alert emails; it never browses LinkedIn for them on the web route.
 
@@ -74,7 +79,7 @@ Close the round with: "That's all I need. You can change any of this any time: j
 ## 4. The daily run
 - **Web/phone**: create a daily cloud routine. Prefer doing it yourself with `/schedule` (or the RemoteTrigger tool):
   name "Rolewise Daily", 08:00 in their timezone (convert to UTC and confirm), this repo, the Gmail and Google Drive
-  connectors, allowed tools Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch and **Agent** (the CV writer and
+  connectors, allowed tools Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, ArtifactData, Artifact and **Agent** (the CV writer and
   reviewer agents), prompt:
   > Run Rolewise's /daily loop for the user in profile/user.yaml. Start with `git pull --rebase` and
   > `pip install python-docx pyyaml`. Follow CLAUDE.md hard rules: never submit an application or send any message
@@ -87,12 +92,14 @@ Close the round with: "That's all I need. You can change any of this any time: j
   after they agree; they run `launchctl load …`).
 
 ## 5. Optional: Rolewise Fill (only if they have a laptop with Chrome; also run this part alone when a user says "set up Rolewise Fill")
-The add-on fills application forms. It needs Chrome, Python 3 and Git on the laptop (not the Claude desktop app). Steps:
-1. `git clone` their private repo (not a zip download: the queue updates through git) and run `python scripts/check_setup.py`.
-2. `chrome://extensions` → Developer mode → **Load unpacked** → the `extension` folder.
-3. `python scripts/install_native_host.py`: finds the add-on's id by itself, registers the local helper (one-click
-   Skip, applied, Pause, Debrief; a per-user Chrome setting, no admin rights) and builds the job kits. Then reload the
-   add-on. From then on the add-on's queue updates itself (the helper pulls the repo and rebuilds kits).
+The add-on fills application forms. It needs Chrome, Python 3 and Git on the laptop (not the Claude desktop app). If
+Python or Git is missing, Windows: `winget install Python.Python.3.12 Git.Git`; macOS: `brew install python git`.
+Give them two lines to paste in a terminal:
+1. `git clone <their private repo URL>` and `cd rolewise` (a clone, not a zip download: the queue updates through git).
+2. `python scripts/setup_fill.py`: installs the packages, opens Chrome's Extensions page with the folder path on the
+   clipboard, waits while they switch on Developer mode and click **Load unpacked** (Chrome allows that only by hand),
+   then registers the local helper (one-click Skip, Applied, Pause, Debrief; a per-user setting, no admin rights) and
+   builds the job queue. They reload and pin the add-on. From then on its queue updates itself.
 Set `fill_addon: true`. Skip it on phone-only setups. Then:
 - **✨ Draft in forms** (optional): explain it needs their own Anthropic API key (console.anthropic.com → Billing,
    then API keys), billed separately from their Claude plan, a fraction of a cent per answer. They paste it on the

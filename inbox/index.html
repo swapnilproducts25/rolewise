@@ -1,0 +1,222 @@
+<title>Rolewise Inbox</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+  /* Layout: one phone-width column; the job queue grouped by location, actions inline on each row. */
+  :root {
+    --bg: #f3f5f9; --panel: #ffffff; --fg: #14223b; --muted: #5b6880; --line: #e1e6ee;
+    --accent: #1d3461; --accent-soft: #e8eef8; --new: #1f7a52; --warn: #8a5a00; --warn-soft: #fff4dc;
+    --sans: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1522; --panel: #172033; --fg: #e6ebf3; --muted: #9aa6ba; --line: #2a354b;
+    --accent: #9db8ea; --accent-soft: #22314d; --new: #5cc795; --warn: #f0c36a; --warn-soft: #3a2f16; color-scheme: dark; } }
+  :root[data-theme="dark"] {
+    --bg: #0f1522; --panel: #172033; --fg: #e6ebf3; --muted: #9aa6ba; --line: #2a354b;
+    --accent: #9db8ea; --accent-soft: #22314d; --new: #5cc795; --warn: #f0c36a; --warn-soft: #3a2f16; color-scheme: dark; }
+
+  body { background: var(--bg); color: var(--fg); font: 15px/1.45 var(--sans); }
+  .wrap { max-width: 42rem; margin-inline: auto; padding-block: 20px 48px;
+          padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+          display: grid; gap: 18px; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  h2 { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+  section { display: grid; gap: 8px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .card { padding: 12px 14px; display: grid; gap: 6px; }
+  .card .t { font-weight: 600; }
+  .card .d { color: var(--muted); font-size: 14px; }
+  .msg { background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 14px; white-space: pre-wrap; }
+  .rows { overflow: hidden; }
+  .job { padding: 12px 14px; display: grid; gap: 6px; border-top: 1px solid var(--line); scroll-margin-top: 16px; }
+  .job:first-child { border-top: 0; }
+  .job.hl { box-shadow: inset 3px 0 0 var(--accent); background: var(--accent-soft); }
+  .job.done { opacity: .55; }
+  .top { display: flex; gap: 10px; align-items: flex-start; }
+  .top .who { flex: 1; min-width: 0; }
+  .co { font-weight: 600; }
+  .role { color: var(--muted); font-size: 14px; }
+  .fit { font: 600 12px/1 var(--mono); color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 5px 8px;
+         font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chip { display: inline-block; font-size: 11px; font-weight: 600; border-radius: 4px; padding: 1px 6px; vertical-align: 1px; margin-left: 4px; }
+  .chip.new { background: var(--new); color: var(--panel); }
+  .chip.age { color: var(--muted); border: 1px solid var(--line); }
+  .why { font-size: 14px; }
+  .links { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
+  .links a, .card a { color: var(--accent); }
+  .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+  button { font: 500 13px/1 var(--sans); border-radius: 7px; padding: 8px 12px; cursor: pointer; border: 1px solid var(--line);
+           background: var(--panel); color: var(--fg); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+  button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+  textarea { width: 100%; box-sizing: border-box; font: 14px/1.4 var(--sans); color: var(--fg); background: var(--bg);
+             border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-height: 64px; }
+  .status { font-size: 13px; color: var(--muted); }
+  .status b { color: var(--fg); font-weight: 600; }
+  .undo { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; font-size: 13px; }
+  .bar { padding: 12px 14px; display: grid; gap: 8px; background: var(--warn-soft); border-color: transparent; color: var(--fg); }
+  .empty { padding: 18px 14px; color: var(--muted); font-size: 14px; }
+  .note { color: var(--muted); font-size: 13px; margin: 0; }
+  @media (prefers-reduced-motion: no-preference) { .job { transition: opacity .2s, background .2s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Rolewise Inbox</h1>
+      <p id="updated">Loading your queue…</p>
+    </div>
+    <button type="button" id="pause" hidden></button>
+  </header>
+
+  <div class="panel bar" id="confirm" hidden></div>
+  <section id="needs" hidden><h2>Needs you</h2><div id="cards" class="list" style="display:grid;gap:8px"></div></section>
+  <div id="queue"><div class="panel empty">Your ready jobs appear here after Rolewise's next run, grouped by location,
+    newest postings first. Tap Applied, Later or Skip on any of them; the next run acts on it.</div></div>
+  <section id="donebox" hidden><h2>Waiting for the next run</h2><div class="panel card" id="done"></div></section>
+  <p class="note">Your taps are saved here at once. Rolewise applies them on its next run (every morning, and whenever
+    the add-on syncs) and clears them from this list.</p>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const VERB = { APPLIED: "Applied", SKIP: "Skipped", WAIT: "Later (3 days)", PAUSE: "Pause Rolewise", RESUME: "Resume Rolewise",
+                 SEND: "Send it", PREPARE: "Prepare it", ANSWER: "Answer", SUBMIT: "Submit", RESTORE: "Bring back" };
+  const REASONS = ["Wrong level", "Location", "Not my domain", "Not interested"];
+  const ORDER = ["Dubai / UAE", "Remote", "Europe", "India", "US", "Other"];
+  let db = null, current = null, actions = new Map(), openSkip = null, busy = false;
+
+  const idOf = (verb, target) => `${verb}-${target || "all"}`.replace(/[^A-Za-z0-9_\-.~:@+]/g, "-").slice(0, 190);
+
+  async function act(verb, target, extra = {}) {
+    if (!db || busy) return;
+    busy = true;
+    try {
+      const doc = { verb, target: target || "", at: new Date().toISOString(), ...extra };
+      await db.collection("actions").doc(idOf(verb, target)).set(doc);
+      openSkip = null;
+    } catch (e) {
+      $("updated").textContent = e && e.code === "quota_exceeded" ? "Too many saved taps: wait for the next run." :
+        "That tap didn't save. Check your connection and try again.";
+    } finally { busy = false; }
+  }
+  async function undo(id) { if (db) try { await db.collection("actions").doc(id).delete(); } catch (e) {} }
+
+  const pendingFor = target => [...actions.values()].find(a => a.target === target && ["APPLIED", "SKIP", "WAIT"].includes(a.verb));
+
+  function jobRow(j) {
+    const p = pendingFor(j.id);
+    const age = j.urgency === "new" ? `<span class="chip new">NEW</span>` : j.age != null ? `<span class="chip age">${j.age}d</span>` : "";
+    const links = [j.url && `<a href="${esc(j.url)}" target="_blank" rel="noopener">Open job</a>`,
+                   j.cv && `<a href="${esc(j.cv)}" target="_blank" rel="noopener">CV</a>`,
+                   j.letter && `<a href="${esc(j.letter)}" target="_blank" rel="noopener">Cover letter</a>`].filter(Boolean).join("");
+    let acts;
+    if (p) acts = `<div class="status"><b>${esc(VERB[p.verb])}</b>${p.note ? ` · ${esc(p.note)}` : ""} · <button class="undo" data-undo="${esc(idOf(p.verb, j.id))}">Undo</button></div>`;
+    else if (openSkip === j.id) acts = `<div class="reasons">${REASONS.map(r => `<button type="button" data-skip="${esc(j.id)}" data-reason="${esc(r)}">${esc(r)}</button>`).join("")}
+        <button type="button" data-skip="${esc(j.id)}" data-reason="">Just skip</button><button type="button" data-cancel>Cancel</button></div>`;
+    else acts = `<div class="acts"><button type="button" class="primary" data-verb="APPLIED" data-target="${esc(j.id)}">Applied</button>
+        <button type="button" data-verb="WAIT" data-target="${esc(j.id)}">Later</button>
+        <button type="button" data-openskip="${esc(j.id)}">Skip</button></div>`;
+    return `<div class="job${p ? " done" : ""}" id="job-${esc(j.id)}">
+      <div class="top"><div class="who"><div class="co">${esc(j.company)}${age}</div><div class="role">${esc(j.title)}${j.location ? ` · ${esc(j.location)}` : ""}</div></div>
+        ${j.fit != null ? `<span class="fit" title="Fit score">${esc(j.fit)}</span>` : ""}</div>
+      ${j.why ? `<div class="why">${esc(j.why)}</div>` : ""}
+      ${links ? `<div class="links">${links}</div>` : ""}
+      ${acts}</div>`;
+  }
+
+  function cardHtml(c, i) {
+    const btns = (c.actions || []).map(a => {
+      if (a.url) return `<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.label)}</a>`;
+      const p = actions.get(idOf(a.verb, a.target));
+      return p ? `<span class="status"><b>${esc(a.label)}</b> saved · <button class="undo" data-undo="${esc(idOf(a.verb, a.target))}">Undo</button></span>`
+        : `<button type="button" ${a.verb === "ANSWER" ? `data-answer="${i}"` : ""} data-verb="${esc(a.verb)}" data-target="${esc(a.target)}" data-label="${esc(a.label)}">${esc(a.label)}</button>`;
+    }).join("");
+    const needsText = (c.actions || []).some(a => a.verb === "ANSWER");
+    return `<div class="panel card" id="card-${i}"><div class="t">${esc(c.title)}</div>${c.detail ? `<div class="d">${esc(c.detail)}</div>` : ""}
+      ${c.message ? `<div class="msg">${esc(c.message)}</div>` : ""}
+      ${needsText ? `<textarea id="ans-${i}" placeholder="Your answer (optional)"></textarea>` : ""}
+      ${btns ? `<div class="acts">${btns}</div>` : ""}</div>`;
+  }
+
+  function render() {
+    if (!current) return;
+    const when = current.updated_at ? new Date(current.updated_at) : null;
+    $("updated").textContent = `${(current.jobs || []).length} jobs ready` + (when ? ` · updated ${when.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}` : "");
+    const paused = !!current.paused, pend = actions.get(idOf(paused ? "RESUME" : "PAUSE", ""));
+    const pb = $("pause");
+    pb.hidden = false;
+    pb.textContent = pend ? (paused ? "Resuming at the next run" : "Pausing at the next run") : paused ? "Resume Rolewise" : "Pause Rolewise";
+    pb.disabled = !!pend;
+    pb.onclick = () => act(paused ? "RESUME" : "PAUSE", "");
+
+    const cards = current.cards || [];
+    $("needs").hidden = !cards.length;
+    $("cards").innerHTML = cards.map(cardHtml).join("");
+
+    const jobs = (current.jobs || []).slice();
+    const groups = [...new Set(ORDER.concat(jobs.map(j => j.group || "Other")))].map(g => [g, jobs.filter(j => (j.group || "Other") === g)]).filter(([, l]) => l.length);
+    $("queue").innerHTML = jobs.length ? groups.map(([g, l]) => {
+      const fresh = l.filter(j => j.urgency === "new").length;
+      return `<section><h2>${esc(g)} · ${l.length}${fresh ? ` · ${fresh} new` : ""}</h2><div class="panel rows">${l.map(jobRow).join("")}</div></section>`;
+    }).join("") : `<div class="panel empty">Nothing ready right now. New jobs arrive with the morning run.</div>`;
+
+    const titles = Object.fromEntries(jobs.map(j => [j.id, `${j.company} · ${j.title}`]));
+    const list = [...actions.entries()].sort((a, b) => String(b[1].at).localeCompare(String(a[1].at)));
+    $("donebox").hidden = !list.length;
+    $("done").innerHTML = list.map(([id, a]) => `<div class="status"><b>${esc(a.label || VERB[a.verb] || a.verb)}</b> ${esc(titles[a.target] || a.title || a.target)}${a.note ? ` · ${esc(a.note)}` : ""} · <button class="undo" data-undo="${esc(id)}">Undo</button></div>`).join("");
+    showConfirm();
+  }
+
+  // A briefing link opens the page at #skip-<job>, #applied-<job> or #pause: confirm it with one tap here.
+  function showConfirm() {
+    const bar = $("confirm"), h = decodeURIComponent(location.hash.slice(1));
+    const m = /^(skip|applied|later|pause|resume)(?:-(.+))?$/.exec(h);
+    const job = m && m[2] && (current.jobs || []).find(j => j.id === m[2]);
+    if (!m || (m[2] && !job)) { bar.hidden = true; if (/^job-/.test(h)) highlight(h.slice(4)); return; }
+    const verb = { skip: "SKIP", applied: "APPLIED", later: "WAIT", pause: "PAUSE", resume: "RESUME" }[m[1]];
+    if (actions.has(idOf(verb, m[2] || ""))) { bar.hidden = true; return; }
+    bar.hidden = false;
+    bar.innerHTML = `<div><b>${esc(VERB[verb])}</b>${job ? ` ${esc(job.company)} · ${esc(job.title)}` : ""}?</div>
+      <div class="acts"><button type="button" class="primary" id="yes">${esc(VERB[verb])}</button><button type="button" id="no">Cancel</button></div>`;
+    $("yes").onclick = async () => { await act(verb, m[2] || ""); history.replaceState(null, "", location.pathname); bar.hidden = true; };
+    $("no").onclick = () => { history.replaceState(null, "", location.pathname); bar.hidden = true; };
+    if (job) highlight(job.id);
+  }
+  function highlight(id) {
+    const el = document.getElementById(`job-${id}`);
+    if (el) { el.classList.add("hl"); el.scrollIntoView({ block: "center" }); }
+  }
+
+  document.addEventListener("click", e => {
+    const t = e.target.closest("button");
+    if (!t) return;
+    if (t.dataset.undo) return undo(t.dataset.undo);
+    if (t.dataset.openskip) { openSkip = t.dataset.openskip; return render(); }
+    if ("cancel" in t.dataset) { openSkip = null; return render(); }
+    if (t.dataset.skip) return act("SKIP", t.dataset.skip, t.dataset.reason ? { note: t.dataset.reason } : {});
+    if (t.dataset.verb) {
+      const extra = { label: t.dataset.label || "" };
+      if (t.dataset.answer != null) { const a = $(`ans-${t.dataset.answer}`); if (a && a.value.trim()) extra.note = a.value.trim().slice(0, 2000); }
+      return act(t.dataset.verb, t.dataset.target, extra);
+    }
+  });
+  window.addEventListener("hashchange", () => current && render());
+
+  claude.use("db").then(d => {
+    db = d;
+    if (!db) { $("updated").textContent = "Sign in to claude.ai to see your queue."; return; }
+    db.doc("queue/current").onSnapshot(s => { current = s.exists ? s.data() : { jobs: [], cards: [] }; render(); },
+      () => { $("updated").textContent = "Couldn't load your queue. Reload the page."; });
+    db.collection("actions").onSnapshot(q => { actions = new Map(q.docs.map(d => [d.id, d.data()])); render(); }, () => {});
+  });
+})();
+</script>

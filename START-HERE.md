@@ -24,9 +24,11 @@ Setup takes about 20 minutes. Have your CV (PDF or Word) to hand.
 You'll get your first briefing the same day.
 
 ## Every day (10–20 minutes)
-1. Read the **Rolewise briefing** email (phone is fine). Rolewise has already prepared the good matches: a tailored
-   CV, a cover letter and form answers for each. Buttons let you skip one, pause Rolewise, or answer a question; a tap
-   opens an email to yourself, hit send, and the next run acts on it.
+1. Read the **Rolewise briefing** email (phone is fine). Each job shows why it fits, its fit score and links to its
+   tailored CV and cover letter.
+   Act in your **Rolewise Inbox**, a private page Rolewise makes for you (linked from every briefing; bookmark it).
+   It has one-tap **Applied**, **Later** and **Skip** on every job, a **Pause** button and your open questions. The
+   next run acts on your taps.
 2. Apply to the **New** ones first: postings from the last 3 days, when early applications get read first. The queue
    keeps about 10 ready jobs per location; ones you don't act on for 3 weeks retire themselves.
 3. To apply: with the add-on (laptop), click a job in its queue, check the filled form and click Submit. Without it,
@@ -39,9 +41,8 @@ Change anything, any time, in plain words: open a session in claude.ai/code and 
 
 **Optional, if you have a laptop with Chrome:** the **Rolewise Fill** add-on fills application forms for you, including
 LinkedIn Easy Apply (step by step) and any other form via **Fill this page**. It needs Chrome, Python and Git on that
-laptop (about 10 minutes). Ask Rolewise
-"set up Rolewise Fill" and it walks you through it, including the small local helper that makes Skip, Pause and
-Debrief one click. Add your own Anthropic API key in its settings for **✨ Draft** answers inside forms.
+laptop (about 10 minutes): `git clone` your copy, then run `python scripts/setup_fill.py` in it. The script does the
+setup; you click **Load unpacked** in Chrome when it asks (Chrome only allows that by hand). Add your own Anthropic API key in its settings for **✨ Draft** answers inside forms.
 
 **Optional, after your first week:** import your LinkedIn data (LinkedIn → Settings → Data privacy → Get a copy of your data).
 Rolewise uses your connections to suggest referrals, your past applications so nothing is suggested twice, and

@@ -9,6 +9,8 @@ Free and open source. Your data stays in your own accounts.
 ## What it does
 - **Finds jobs**: company career pages for the companies you pick, your LinkedIn job-alert emails, and job boards.
   Each role is scored for fit with a one-line reason; closed postings and roles you already applied to are dropped.
+- **One-tap Inbox**: a private page with your ready jobs and **Applied / Later / Skip / Pause** buttons, linked from
+  every briefing. No forms, no emails to yourself.
 - **Prepares every good match without waiting for you**: a tailored CV (only facts from your own CV, in one of three
   clean styles), a cover letter, and answers to the form's own questions, ready in a queue.
 - **A queue that keeps moving**: about 10 ready jobs per location you target, newest postings first (early
@@ -27,7 +29,7 @@ Free and open source. Your data stays in your own accounts.
   (CV, cover letter, answers, salary band, dropdowns). Works on Greenhouse, Lever, Ashby, Workable, SmartRecruiters,
   Homerun, LinkedIn Easy Apply (step by step, you click Next) and Workday, and on any other form with
   **Fill this page** (Alt+Shift+F). You check the form and click Submit. Skip, Pause and interview Debrief notes are
-  one click in the add-on. Setup needs Chrome, Python and Git on your laptop (about 10 minutes).
+  one click in the add-on. Setup needs Chrome, Python and Git on your laptop and one command, `python scripts/setup_fill.py` (about 10 minutes).
   Optional: your own Anthropic API key in the add-on's settings adds **✨ Draft / Redraft / Shorter** under unusual
   questions, written into the field from your CV and the job description (a fraction of a cent per answer).
 

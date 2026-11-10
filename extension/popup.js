@@ -1,7 +1,7 @@
 // Toolbar menu: the Ready queue (kits built by scripts/build_kits.py), best fit first, plus Pause/Resume and Debrief.
 // Skip, Pause/Resume and Debrief go to the local helper (extension/native, set up once with
-// scripts/install_native_host.py), which updates the tracker on this laptop at once. Without the helper, the same
-// action goes as a "Rolewise action" tap email to yourself, which the next run picks up.
+// scripts/setup_fill.py), which updates the tracker on this laptop at once. Without the helper, Skip and Pause open the
+// same action in your Rolewise Inbox page (one tap there; the next run applies it).
 const list = document.getElementById("list");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const getDone = () => new Promise(r => chrome.storage.local.get({ submitted: [] }, d => r(d.submitted)));
@@ -22,10 +22,11 @@ const ageChip = k => k.age == null ? "" : k.urgency === "new"
   ? `<span class="age new" title="Posted ${k.age ? k.age + (k.age > 1 ? " days" : " day") + " ago" : "today"}: early applications get read first">New</span>`
   : `<span class="age${k.urgency === "old" ? " old" : ""}" title="${k.posted ? "Posted" : "Found"} ${k.age} days ago">${k.age}d</span>`;
 
-const tapEmail =(to, subject, body) => {
-  const q = new URLSearchParams({ view: "cm", to, su: `Rolewise action: ${subject}`,
-    body: `${subject}\n\n${body}(From Rolewise Fill. Hit send; the next Rolewise run picks it up.)\n` });
-  chrome.tabs.create({ url: `https://mail.google.com/mail/?${q}` });
+// Opens the Rolewise Inbox on the action ("#skip-<job>", "#pause"); returns false when there is no inbox yet.
+const openInbox = (st, hash) => {
+  if (!st.inbox_url) return false;
+  chrome.tabs.create({ url: `${st.inbox_url}#${hash}` });
+  return true;
 };
 
 async function renderPause(st) {
@@ -44,7 +45,7 @@ async function renderPause(st) {
   btn.onclick = async () => {
     const verb = paused ? "RESUME" : "PAUSE";
     const res = await native({ action: verb.toLowerCase() });
-    if (!res.ok) tapEmail(st.email, verb, verb === "PAUSE" ? 'Add "until YYYY-MM-DD" on the first line if you like.\n\n' : "");
+    if (!res.ok) openInbox(st, verb.toLowerCase());
     chrome.storage.local.set({ pauseAsked: verb }, render);
   };
 }
@@ -70,7 +71,10 @@ function renderInterviews(st) {
       if (!notes) return;
       const res = await native({ action: "debrief", id: b.dataset.id, notes });
       if (res.ok) box.innerHTML = `<span class="msg">Saved. The next run turns it into a full debrief.</span>`;
-      else tapEmail(st.email, `ANSWER ${b.dataset.id}`, `Debrief notes:\n${notes}\n\n`);
+      else {   // no local helper: keep the notes on the clipboard for a /debrief session
+        try { await navigator.clipboard.writeText(notes); } catch (e) {}
+        box.innerHTML = `<span class="msg">Notes copied. Paste them into a Rolewise session: /debrief ${esc(b.dataset.id)}</span>`;
+      }
     };
   });
 }
@@ -115,7 +119,7 @@ async function render() {
     const id = b.dataset.id;
     b.closest(".row").style.opacity = ".4";
     const res = await native({ action: "skip", id });
-    if (!res.ok && st.email) tapEmail(st.email, `SKIP ${id}`, "Add a reason below if you like.\n\n");
+    if (!res.ok) openInbox(st, `skip-${id}`);
     const d = await getDone();
     chrome.storage.local.set({ submitted: d.concat(id) }, render);
   });

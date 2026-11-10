@@ -5,13 +5,9 @@ Writes <date>.html, <date>.txt and <date>.md next to the JSON and prints the ema
 SEND IT AS HTML: the Gmail send call must pass htmlBody = the whole .html file (body = the .txt as the fallback).
 A text-only send arrives with no formatting at all.
 
-Buttons are mailto links to the user's own address (profile/user.yaml) with subject "Rolewise action: <VERB> <target>".
-They tap, hit send, and the next run reads those emails (daily skill step 0). Verbs:
-  SKIP <job-id>     mark skipped (optional reason in the body)
-  SEND <draft-id>   send this Gmail draft as written
-  WAIT <job-id>     do nothing for now; re-surface in 3 days
-  ANSWER <job-id>   their answer to an open question is in the email body
-  PAUSE / RESUME    pause or restart Rolewise
+Buttons open the user's private Rolewise Inbox page (`inbox_url` in profile/user.yaml, scripts/inbox.py), where one
+tap saves the action and the next run applies it. A job's Skip opens it at #skip-<job> with a one-tap confirm.
+Verbs: SKIP / APPLIED / WAIT <job-id>, SEND <draft-id>, PREPARE <job-id>, ANSWER <job-id>, PAUSE / RESUME.
 Link buttons: {"label": "...", "url": "https://..."}.
 
 Design: a soft grey page with one white card; a slim brand line, the headline, the week's numbers as three small tiles;
@@ -34,6 +30,34 @@ from pathlib import Path
 from urllib.parse import quote
 
 from userconf import USER  # noqa: E402
+from build_kits import freshness  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent
+JOBS = {j["id"]: j for j in json.loads((ROOT / "tracker" / "applications.json").read_text(encoding="utf-8"))}     if (ROOT / "tracker" / "applications.json").exists() else {}
+
+
+def repo_url():
+    """https://github.com/<owner>/<repo> of this copy, for links to the prepared CV and cover letter."""
+    import subprocess
+    try:
+        remote = subprocess.run(["git", "remote", "get-url", "origin"], cwd=ROOT, capture_output=True, text=True).stdout
+    except OSError:
+        return ""
+    m = re.search(r"([\w.-]+)/([\w.-]+?)(?:\.git)?\s*$", remote)
+    return f"https://github.com/{m[1]}/{m[2]}" if m else ""
+
+
+REPO = repo_url()
+
+
+def job_files(job_id):
+    """Links to the job's CV and cover letter (PDF if built, else Word), on the user's private GitHub copy."""
+    folder, links = ROOT / "applications" / job_id, []
+    for label, pattern in (("CV", "* - CV - *"), ("Cover letter", "* - Cover Letter - *")):
+        found = sorted(folder.glob(pattern), key=lambda f: f.suffix.lower() != ".pdf")
+        if found and REPO:
+            links.append((label, f"{REPO}/blob/main/applications/{quote(job_id)}/{quote(found[0].name)}"))
+    return links
 
 ME = USER["email"]
 MAX_ITEMS = 3      # cards per section
@@ -46,15 +70,23 @@ SECTIONS = {"today": ("🔥", "#d98e04"), "needs_you": ("💬", "#2f6fdb"), "ref
 EMOJI = re.compile(r"^[\W_]+\s*", re.UNICODE)   # a leading emoji the JSON may already carry
 
 
-def mailto(verb, target, date):
-    subject = f"Rolewise action: {verb} {target}".strip()
-    body = f"{verb} {target}".strip() + f"\n\n(From the {date} briefing. Add a note below if you like, then hit send.)\n"
-    return f"mailto:{ME}?subject={quote(subject)}&body={quote(body)}"
+INBOX = USER.get("inbox_url") or ""
+HASH = {"SKIP": "skip", "APPLIED": "applied", "WAIT": "later", "PAUSE": "pause", "RESUME": "resume"}
+
+
+def action_href(verb, target, date):
+    """The Rolewise Inbox, opened on that action when it has a one-tap confirm, else on the page (its cards)."""
+    if not INBOX:
+        return ""
+    h = HASH.get(verb)
+    return f"{INBOX}#{h}-{target}" if h and target else f"{INBOX}#{h}" if h else INBOX
 
 
 def button(action, date, primary):
     """Email-safe button: colour on a table cell (bgcolor), which Gmail keeps; it strips <a> backgrounds."""
-    href = action.get("url") or mailto(action["verb"], action["target"], date)
+    href = action.get("url") or action_href(action["verb"], action["target"], date)
+    if not href:
+        return ""
     bg, fg, border = (NAVY, "#ffffff", NAVY) if primary else ("#ffffff", NAVY, "#c9d4e8")
     return (f'<td bgcolor="{bg}" style="background-color:{bg};border:1px solid {border};border-radius:7px">'
             f'<a href="{escape(href)}" style="display:inline-block;padding:6px 12px;font-size:13px;font-weight:600;'
@@ -63,7 +95,9 @@ def button(action, date, primary):
 
 def button_row(actions, date):
     cells = '<td width="6" style="width:6px;font-size:0;line-height:0">&nbsp;</td>'.join(
-        button(a, date, i == 0) for i, a in enumerate(actions))
+        filter(None, (button(a, date, i == 0) for i, a in enumerate(actions))))
+    if not cells:
+        return ""
     return (f'<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:10px">'
             f'<tr>{cells}</tr></table>')
 
@@ -102,23 +136,37 @@ def stat_tiles(s):
 
 
 def compact_list(sec, items, date):
-    """Prepared jobs as rows: company and role, one quiet detail line, a fit badge and a small Skip link."""
+    """Prepared jobs as rows: company and role, where and why it fits, the CV and cover letter, a fit badge and Skip.
+    Facts come from the tracker by job id, so every row has them even when the run's JSON is thin."""
     rows = []
     for i in items[:MAX_LIST]:
         skip = next((a for a in i.get("actions", []) if a.get("verb") == "SKIP"), None)
         link = next((a for a in i.get("actions", []) if a.get("url")), None)
-        fit = i.get("fit") or (re.search(r"fit (\d+)", i.get("detail", "")) or [None, None])[1]
+        job = JOBS.get(i.get("id") or (skip or {}).get("target") or "", {})
+        fit = i.get("fit") or job.get("fit_score") or (re.search(r"fit (\d+)", i.get("detail", "")) or [None, None])[1]
         detail = " · ".join(p for p in re.split(r"\s*·\s*", i.get("detail", "")) if p and not re.fullmatch(r"fit \d+", p))
+        why = i.get("why") or re.sub(r"^(ADJACENT|STRONG|STRETCH)\.\s*", "", job.get("fit_summary") or "", flags=re.I)
+        why = why if len(why) <= 140 else why[:137].rsplit(" ", 1)[0] + "…"
+        url = (link or {}).get("url") or job.get("apply_url") or job.get("url")
         title = escape(i["title"])
-        if link:
-            title = f'<a href="{escape(link["url"])}" style="color:{INK};text-decoration:none">{title}</a>'
+        if url:
+            title = f'<a href="{escape(url)}" style="color:{INK};text-decoration:none">{title}</a>'
+        if job and freshness(job)["urgency"] == "new":
+            title += (' <span style="display:inline-block;background-color:#1f8a5b;color:#ffffff;font-size:11px;'
+                      'font-weight:700;border-radius:4px;padding:1px 5px;vertical-align:2px">NEW</span>')
+        files = job_files(job["id"]) if job else []
+        file_links = " &nbsp;·&nbsp; ".join(f'<a href="{escape(u)}" style="color:{NAVY};font-size:13px">{escape(lbl)}</a>'
+                                            for lbl, u in files)
         badge = (f'<span style="display:inline-block;background-color:{SOFT};color:{NAVY};font-size:12px;font-weight:700;'
                  f'border-radius:10px;padding:2px 8px">{escape(str(fit))}</span>') if fit else ""
-        skip_link = (f'<a href="{escape(mailto("SKIP", skip["target"], date))}" style="color:{MUTED};font-size:12px;'
-                     f'text-decoration:underline">Skip</a>') if skip else ""
+        target = job.get("id") or (skip or {}).get("target")
+        skip_link = (f'<a href="{escape(action_href("SKIP", target, date))}" style="color:{MUTED};font-size:12px;'
+                     f'text-decoration:underline">Skip</a>') if target and INBOX else ""
         rows.append(f'<tr><td style="padding:10px 0;border-bottom:1px solid {LINE}">'
                     f'<div style="font-weight:600;font-size:15px">{title}</div>'
                     + (f'<div style="color:{MUTED};font-size:13px;margin-top:2px">{escape(detail)}</div>' if detail else "")
+                    + (f'<div style="color:{INK};font-size:13px;margin-top:3px">{escape(why)}</div>' if why else "")
+                    + (f'<div style="margin-top:4px">{file_links}</div>' if file_links else "")
                     + f'</td><td align="right" valign="middle" style="padding:10px 0 10px 10px;border-bottom:1px solid {LINE};'
                       f'white-space:nowrap">{badge}&nbsp;&nbsp;{skip_link}</td></tr>')
     hidden = len(items) - MAX_LIST + sec.get("more", 0)
@@ -165,7 +213,7 @@ def render(data):
             if item.get("message"):
                 text.append("    Message: " + item["message"].replace("\n", "\n    "))
             for a in item.get("actions", []):
-                text.append(f"    [{a['label']}] " + (a.get("url") or f'email yourself "Rolewise action: {a["verb"]} {a["target"]}"'))
+                text.append(f"    [{a['label']}] " + (a.get("url") or action_href(a["verb"], a["target"], date) or "open a Rolewise session"))
         hidden = len(items) - MAX_ITEMS + sec.get("more", 0)
         if hidden > 0:
             body.append(f'<div style="color:{MUTED};font-size:13px;margin-top:6px">+{hidden} more on the progress page</div>')
@@ -174,17 +222,20 @@ def render(data):
     # Users without the add-on get a short tip on the first briefing and on Mondays (not every day).
     if not USER.get("fill_addon") and (data.get("first_briefing") or dt.date.fromisoformat(date).weekday() == 0):
         tip = ("Have a laptop with Chrome? The free Rolewise Fill add-on fills application forms for you in seconds; "
-               "you just check and submit. Ask Rolewise to \"set up Rolewise Fill\" (about 20 minutes).")
+               "you just check and submit. Ask Rolewise to \"set up Rolewise Fill\" (about 10 minutes, one command).")
         body.append(f'<div style="margin-top:18px;background-color:{SOFT};border-radius:10px;padding:10px 12px;'
                     f'font-size:14px;color:{INK}">⚡ {escape(tip)}</div>')
         text.append("Tip: " + tip)
     links = [f'<a href="{escape(data["dashboard_url"])}" style="color:{MUTED}">Progress page</a>'] if data.get("dashboard_url") else []
-    links.append(f'<a href="{mailto("PAUSE", "", date)}" style="color:{MUTED}">Pause Rolewise</a>')
+    if INBOX:
+        links.insert(0, f'<a href="{escape(INBOX)}" style="color:{NAVY};font-weight:600">Open your Rolewise Inbox</a>')
+        links.append(f'<a href="{escape(action_href("PAUSE", "", date))}" style="color:{MUTED}">Pause Rolewise</a>')
     body.append(f'<div style="margin-top:24px;padding-top:12px;border-top:1px solid {LINE};color:{MUTED};font-size:12px">'
                 + " &nbsp;·&nbsp; ".join(links) + "</div>")
     if data.get("dashboard_url"):
         text.append(f"Progress page: {data['dashboard_url']}")
-    text.append('Pause Rolewise: email yourself "Rolewise action: PAUSE".')
+    if INBOX:
+        text.append(f"Rolewise Inbox (Applied, Later, Skip, Pause): {INBOX}")
     html = (f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="{PAGE}" '
             f'style="background-color:{PAGE}"><tr><td align="center" style="padding:20px 10px">'
             f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px">'

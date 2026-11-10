@@ -353,7 +353,8 @@ def main(ids):
             continue
         k = json.loads(path.read_text(encoding="utf-8"))
         index.append({"id": k["id"], "label": f"{k['company']} · {k['title']}", "urls": k["urls"],
-                      "status": status.get(k["id"], k.get("status")),
+                      "status": "later" if (by_id.get(k["id"]) or {}).get("snooze_until", "") > date.today().isoformat()
+                      else status.get(k["id"], k.get("status")),   # "Later" in the Rolewise Inbox hides it for 3 days
                       "fit": (by_id.get(k["id"]) or {}).get("fit_score", k.get("fit")),
                       "mode": mode.get(k["id"], ""), "group": group(by_id.get(k["id"]) or {}),
                       "location": (by_id.get(k["id"]) or {}).get("location") or "",
@@ -362,7 +363,7 @@ def main(ids):
     (KITS / "index.json").write_text(json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8")
     (KITS / "rules.json").write_text(json.dumps(RULES, indent=1, ensure_ascii=False), encoding="utf-8")
     (KITS / "status.json").write_text(json.dumps({"paused": bool(USER.get("paused")), "paused_until": USER.get("paused_until") or "",
-                                                  "email": USER.get("email", ""),
+                                                  "email": USER.get("email", ""), "inbox_url": USER.get("inbox_url", ""),
                                                   "interviews": [{"id": j["id"], "label": f"{j['company']} · {j['title']}",
                                                                   "debriefed": debriefed(j)}
                                                                  for j in jobs if j["status"] in ("screening", "interviewing")]},
