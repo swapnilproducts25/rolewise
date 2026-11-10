@@ -61,6 +61,16 @@
   .status b { color: var(--fg); font-weight: 600; }
   .undo { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; font-size: 13px; }
   .bar { padding: 12px 14px; display: grid; gap: 8px; background: var(--warn-soft); border-color: transparent; color: var(--fg); }
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .tile { padding: 10px 12px; display: grid; gap: 2px; }
+  .tile b { font: 600 20px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--muted); font-size: 12px; }
+  .live { font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .live b { color: var(--fg); font-weight: 600; }
+  .nudge { font-size: 13px; font-weight: 600; color: var(--new); }
+  .first .rows { border-color: var(--accent); }
+  .soon .job { padding-block: 9px; }
+  .soon .why { display: none; }
   .empty { padding: 18px 14px; color: var(--muted); font-size: 14px; }
   .note { color: var(--muted); font-size: 13px; margin: 0; }
   @media (prefers-reduced-motion: no-preference) { .job { transition: opacity .2s, background .2s; } }
@@ -75,10 +85,23 @@
     <button type="button" id="pause" hidden></button>
   </header>
 
+  <section id="progress" hidden>
+    <div class="tiles">
+      <div class="panel tile"><b id="p-week">–</b><span>applied this week</span></div>
+      <div class="panel tile"><b id="p-int">–</b><span>interviews</span></div>
+      <div class="panel tile"><b id="p-rate">–</b><span>reply rate</span></div>
+    </div>
+    <div class="live" id="p-live"></div>
+  </section>
   <div class="panel bar" id="confirm" hidden></div>
+  <section id="firstbox" class="first" hidden><h2>Do these first</h2><div class="panel rows" id="first"></div></section>
   <section id="needs" hidden><h2>Needs you</h2><div id="cards" class="list" style="display:grid;gap:8px"></div></section>
   <div id="queue"><div class="panel empty">Your ready jobs appear here after Rolewise's next run, grouped by location,
     newest postings first. Tap Applied, Later or Skip on any of them; the next run acts on it.</div></div>
+  <section id="soonbox" class="soon" hidden><h2 id="soonh">Coming next</h2>
+    <p class="note">Shortlisted and being prepared (CV and cover letter), best and newest first. Tap Prepare first to move
+      one up, or Skip so no time goes on it.</p>
+    <div id="soon" style="display:grid;gap:8px"></div></section>
   <section id="donebox" hidden><h2>Waiting for the next run</h2><div class="panel card" id="done"></div></section>
   <p class="note">Your taps are saved here at once. Rolewise applies them on its next run (every morning, and whenever
     the add-on syncs) and clears them from this list.</p>
@@ -112,7 +135,15 @@
 
   const pendingFor = target => [...actions.values()].find(a => a.target === target && ["APPLIED", "SKIP", "WAIT"].includes(a.verb));
 
-  function jobRow(j) {
+  const rank = j => (j.fit || 0) + ({ new: 8, week: 4, old: -6 }[j.urgency] || 0);
+  function nudge(j, best) {
+    if (j.urgency === "new") return `New: posted ${j.age ? j.age + (j.age > 1 ? " days" : " day") + " ago" : "today"}. Early applications get read first.`;
+    if (j.fit >= 75 || j.id === best) return `Your strongest match right now (fit ${j.fit}).`;
+    if (j.urgency === "week") return `Posted ${j.age} days ago: still early.`;
+    return "";
+  }
+
+  function jobRow(j, opts = {}) {
     const p = pendingFor(j.id);
     const age = j.urgency === "new" ? `<span class="chip new">NEW</span>` : j.age != null ? `<span class="chip age">${j.age}d</span>` : "";
     const links = [j.url && `<a href="${esc(j.url)}" target="_blank" rel="noopener">Open job</a>`,
@@ -122,14 +153,19 @@
     if (p) acts = `<div class="status"><b>${esc(VERB[p.verb])}</b>${p.note ? ` · ${esc(p.note)}` : ""} · <button class="undo" data-undo="${esc(idOf(p.verb, j.id))}">Undo</button></div>`;
     else if (openSkip === j.id) acts = `<div class="reasons">${REASONS.map(r => `<button type="button" data-skip="${esc(j.id)}" data-reason="${esc(r)}">${esc(r)}</button>`).join("")}
         <button type="button" data-skip="${esc(j.id)}" data-reason="">Just skip</button><button type="button" data-cancel>Cancel</button></div>`;
+    else if (opts.soon) acts = actions.has(idOf("PREPARE", j.id))
+        ? `<div class="status"><b>Prepare first</b> · <button class="undo" data-undo="${esc(idOf("PREPARE", j.id))}">Undo</button></div>`
+        : `<div class="acts"><button type="button" data-verb="PREPARE" data-target="${esc(j.id)}" data-label="Prepare first">Prepare first</button>
+        <button type="button" data-openskip="${esc(j.id)}">Skip</button></div>`;
     else acts = `<div class="acts"><button type="button" class="primary" data-verb="APPLIED" data-target="${esc(j.id)}">Applied</button>
         <button type="button" data-verb="WAIT" data-target="${esc(j.id)}">Later</button>
         <button type="button" data-openskip="${esc(j.id)}">Skip</button></div>`;
     return `<div class="job${p ? " done" : ""}" id="job-${esc(j.id)}">
       <div class="top"><div class="who"><div class="co">${esc(j.company)}${age}</div><div class="role">${esc(j.title)}${j.location ? ` · ${esc(j.location)}` : ""}</div></div>
         ${j.fit != null ? `<span class="fit" title="Fit score">${esc(j.fit)}</span>` : ""}</div>
+      ${opts.nudge ? `<div class="nudge">${esc(opts.nudge)}</div>` : ""}
       ${j.why ? `<div class="why">${esc(j.why)}</div>` : ""}
-      ${links ? `<div class="links">${links}</div>` : ""}
+      ${links && !opts.soon ? `<div class="links">${links}</div>` : ""}
       ${acts}</div>`;
   }
 
@@ -150,7 +186,7 @@
   function render() {
     if (!current) return;
     const when = current.updated_at ? new Date(current.updated_at) : null;
-    $("updated").textContent = `${(current.jobs || []).length} jobs ready` + (when ? ` · updated ${when.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}` : "");
+    $("updated").textContent = `${(current.jobs || []).length} ready to apply · ${(current.upcoming || []).length} coming next` + (when ? ` · updated ${when.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}` : "");
     const paused = !!current.paused, pend = actions.get(idOf(paused ? "RESUME" : "PAUSE", ""));
     const pb = $("pause");
     pb.hidden = false;
@@ -162,14 +198,37 @@
     $("needs").hidden = !cards.length;
     $("cards").innerHTML = cards.map(cardHtml).join("");
 
-    const jobs = (current.jobs || []).slice();
-    const groups = [...new Set(ORDER.concat(jobs.map(j => j.group || "Other")))].map(g => [g, jobs.filter(j => (j.group || "Other") === g)]).filter(([, l]) => l.length);
+    const pr = current.progress;
+    $("progress").hidden = !pr;
+    if (pr) {
+      $("p-week").textContent = pr.applied_week; $("p-int").textContent = pr.interviews; $("p-rate").textContent = pr.reply_rate;
+      $("p-live").innerHTML = (pr.live || []).map(l => `<span><b>${esc(l.company)}</b> ${esc(l.status)}</span>`).join("")
+        + (current.dashboard_url ? `<a href="${esc(current.dashboard_url)}" target="_blank" rel="noopener">All jobs and charts</a>` : "");
+    }
+
+    const jobs = (current.jobs || []).slice().sort((a, b) => rank(b) - rank(a));
+    const live = jobs.filter(j => !pendingFor(j.id));
+    const best = live[0] && live[0].id;
+    // Do these first: every new posting, then the best-ranked others, up to 3 (more if several are new).
+    const first = live.filter(j => j.urgency === "new").concat(live.filter(j => j.urgency !== "new" && j.urgency !== "old"))
+      .slice(0, Math.max(3, live.filter(j => j.urgency === "new").length));
+    const firstIds = new Set(first.map(j => j.id));
+    $("firstbox").hidden = !first.length;
+    $("first").innerHTML = first.map(j => jobRow(j, { nudge: nudge(j, best) })).join("");
+    const rest = jobs.filter(j => !firstIds.has(j.id));
+    const groups = [...new Set(ORDER.concat(rest.map(j => j.group || "Other")))].map(g => [g, rest.filter(j => (j.group || "Other") === g)]).filter(([, l]) => l.length);
     $("queue").innerHTML = jobs.length ? groups.map(([g, l]) => {
       const fresh = l.filter(j => j.urgency === "new").length;
-      return `<section><h2>${esc(g)} · ${l.length}${fresh ? ` · ${fresh} new` : ""}</h2><div class="panel rows">${l.map(jobRow).join("")}</div></section>`;
+      return `<section><h2>${esc(g)} · ${l.length}${fresh ? ` · ${fresh} new` : ""}</h2><div class="panel rows">${l.map(j => jobRow(j)).join("")}</div></section>`;
     }).join("") : `<div class="panel empty">Nothing ready right now. New jobs arrive with the morning run.</div>`;
 
-    const titles = Object.fromEntries(jobs.map(j => [j.id, `${j.company} · ${j.title}`]));
+    const soon = current.upcoming || [];
+    $("soonbox").hidden = !soon.length;
+    $("soonh").textContent = `Coming next · ${soon.length}`;
+    const sg = [...new Set(ORDER.concat(soon.map(j => j.group || "Other")))].map(g => [g, soon.filter(j => (j.group || "Other") === g)]).filter(([, l]) => l.length);
+    $("soon").innerHTML = sg.map(([g, l]) => `<div><h2>${esc(g)} · ${l.length}</h2><div class="panel rows">${l.map(j => jobRow(j, { soon: true, nudge: j.urgency === "new" ? nudge(j) : "" })).join("")}</div></div>`).join("");
+
+    const titles = Object.fromEntries(jobs.concat(soon).map(j => [j.id, `${j.company} · ${j.title}`]));
     const list = [...actions.entries()].sort((a, b) => String(b[1].at).localeCompare(String(a[1].at)));
     $("donebox").hidden = !list.length;
     $("done").innerHTML = list.map(([id, a]) => `<div class="status"><b>${esc(a.label || VERB[a.verb] || a.verb)}</b> ${esc(titles[a.target] || a.title || a.target)}${a.note ? ` · ${esc(a.note)}` : ""} · <button class="undo" data-undo="${esc(id)}">Undo</button></div>`).join("");

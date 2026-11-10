@@ -43,15 +43,29 @@ def export(briefing=None):
     today = date.today().isoformat()
     ready = [j for j in jobs if j["status"] == "ready" and (j.get("snooze_until") or "") <= today]
     ready.sort(key=lambda j: -((j.get("fit_score") or 0) + BOOST.get(freshness(j)["urgency"], 0)))
-    out = []
-    for j in ready:
+    def row(j):
         f = freshness(j)
         files = dict(job_files(j["id"]))
         why = re.sub(r"^(ADJACENT|STRONG|STRETCH)\.\s*", "", j.get("fit_summary") or "", flags=re.I)
-        out.append({"id": j["id"], "company": j["company"], "title": j["title"], "location": j.get("location") or "",
-                    "group": group(j), "fit": j.get("fit_score"), "why": why[:200], "age": f["age"],
-                    "urgency": f["urgency"], "url": j.get("apply_url") or j.get("url") or "",
-                    "cv": files.get("CV", ""), "letter": files.get("Cover letter", "")})
+        return {"id": j["id"], "company": j["company"], "title": j["title"], "location": j.get("location") or "",
+                "group": group(j), "fit": j.get("fit_score"), "why": why[:200], "age": f["age"],
+                "urgency": f["urgency"], "url": j.get("apply_url") or j.get("url") or "",
+                "cv": files.get("CV", ""), "letter": files.get("Cover letter", "")}
+    out = [row(j) for j in ready]
+    # Shortlisted, not prepared yet: shown as "Coming next" so the queue isn't capped at what's ready today.
+    prefs = yaml.safe_load((ROOT / "profile" / "preferences.yaml").read_text(encoding="utf-8")) or {}
+    rank = lambda j: -((j.get("fit_score") or 0) + BOOST.get(freshness(j)["urgency"], 0))
+    upcoming = [row(j) for j in sorted((j for j in jobs if j["status"] in ("shortlisted", "preparing")
+                                        and (j.get("fit_score") or 0) >= (prefs.get("auto_prepare_min_fit") or 0)), key=rank)]
+    week_ago = (date.today() - timedelta(days=7)).isoformat()
+    sent = [j for j in jobs if j.get("date_applied")]
+    replied = [j for j in sent if j["status"] in ("screening", "interviewing", "offer", "rejected")]
+    progress = {"applied_week": sum((j.get("date_applied") or "") >= week_ago for j in sent), "applied_total": len(sent),
+                "interviews": sum(j["status"] in ("interviewing", "offer") for j in jobs),
+                "reply_rate": f"{round(100 * len(replied) / len(sent))}%" if sent else "–",
+                "live": [{"company": j["company"], "title": j["title"], "status": j["status"], "date": j.get("date_applied") or ""}
+                         for j in sorted(jobs, key=lambda j: j.get("date_applied") or "", reverse=True)
+                         if j["status"] in ("screening", "interviewing", "offer")]}
     cards = []
     if briefing:
         data = json.loads(Path(briefing).read_text(encoding="utf-8"))
@@ -63,10 +77,11 @@ def export(briefing=None):
                     cards.append({k: it[k] for k in ("title", "detail", "message", "actions") if it.get(k)})
     user = yaml.safe_load(USER_FILE.read_text(encoding="utf-8")) or {}
     doc = {"updated_at": f"{today}T{__import__('datetime').datetime.now().strftime('%H:%M:%S')}",
-           "paused": bool(user.get("paused")), "paused_until": str(user.get("paused_until") or ""), "jobs": out, "cards": cards}
+           "paused": bool(user.get("paused")), "paused_until": str(user.get("paused_until") or ""), "jobs": out,
+           "upcoming": upcoming, "progress": progress, "dashboard_url": user.get("dashboard_url") or "", "cards": cards}
     (ROOT / "inbox").mkdir(exist_ok=True)
     (ROOT / "inbox" / "current.json").write_text(json.dumps(doc, indent=1, ensure_ascii=False), encoding="utf-8")
-    print(f"inbox/current.json: {len(out)} jobs, {len(cards)} cards")
+    print(f"inbox/current.json: {len(out)} ready, {len(upcoming)} coming next, {len(cards)} cards")
 
 
 def set_user(**kv):
