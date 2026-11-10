@@ -2,7 +2,7 @@
 
 Usage (run with .venv/Scripts/python scripts/tracker.py ...):
   add --company C --title T [--location L] [--work-mode M] [--url U] [--source S]
-      [--fit N] [--summary TEXT] [--status found]
+      [--fit N] [--summary TEXT] [--status found] [--posted YYYY-MM-DD]
   update ID [--status S] [--note TEXT] [--next-action TEXT] [--next-date YYYY-MM-DD] [--set key=value ...]
   exists [--url U] [--company C --title T]
   show ID
@@ -109,6 +109,7 @@ def cmd_add(a, jobs):
         "fit_summary": a.summary,
         "status": a.status,
         "date_found": today,
+        "posted": a.posted,
         "date_applied": None,
         "cv_file": None,
         "folder": f"applications/{job_id}",
@@ -214,6 +215,7 @@ def main():
     s.add_argument("--fit", type=int)
     s.add_argument("--summary")
     s.add_argument("--status", default="found", choices=STATUSES)
+    s.add_argument("--posted", help="posting date from the job page or ats_scan, YYYY-MM-DD")
 
     s = sub.add_parser("update")
     s.add_argument("id")

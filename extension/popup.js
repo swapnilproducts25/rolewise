@@ -17,6 +17,11 @@ const TAGS = {
 
 const GROUP_ORDER = ["Dubai / UAE", "Remote", "Europe", "India", "US", "Other"];   // Remote: workable from Dubai
 
+// "New" for postings from the last 3 days (apply today), else the age in days.
+const ageChip = k => k.age == null ? "" : k.urgency === "new"
+  ? `<span class="age new" title="Posted ${k.age ? k.age + (k.age > 1 ? " days" : " day") + " ago" : "today"}: early applications get read first">New</span>`
+  : `<span class="age${k.urgency === "old" ? " old" : ""}" title="${k.posted ? "Posted" : "Found"} ${k.age} days ago">${k.age}d</span>`;
+
 const tapEmail =(to, subject, body) => {
   const q = new URLSearchParams({ view: "cm", to, su: `Rolewise action: ${subject}`,
     body: `${subject}\n\n${body}(From Rolewise Fill. Hit send; the next Rolewise run picks it up.)\n` });
@@ -73,8 +78,11 @@ function renderInterviews(st) {
 async function render() {
   const [index, done, st] = await Promise.all([
     fetch(chrome.runtime.getURL("kits/index.json")).then(r => r.json()), getDone(), status()]);
-  const byFit = (a, b) => (b.fit || 0) - (a.fit || 0);
-  const ready = index.filter(k => k.status === "ready" && k.urls.length && !done.includes(k.id)).sort(byFit);
+  // Apply early: a posting from the last 3 days counts as +8 fit, this week's +4, so fresh good jobs lead.
+  const BOOST = { new: 8, week: 4 };
+  const rank = k => (k.fit || 0) + (BOOST[k.urgency] || 0);
+  const ready = index.filter(k => k.status === "ready" && k.urls.length && !done.includes(k.id))
+    .sort((a, b) => rank(b) - rank(a));
   const coming = index.filter(k => k.status === "preparing").length;
   const row = k => {
     const [co, role] = split(k.label);
@@ -83,15 +91,23 @@ async function render() {
     return `<div class="row"><div class="job" data-url="${esc(k.urls[0])}" title="${esc(k.location || "Open the form; it fills itself")}">` +
       `<div class="co">${esc(co)}${tag ? `<span class="tag" title="${esc(tag[1])}">${tag[0]}</span>` : ""}</div>` +
       `<div class="role">${esc(role)}</div></div>` +
+      ageChip(k) +
       (k.fit ? `<span class="fit" title="${esc(fitHint)}">${k.fit}</span>` : "") +
       `<button class="x" data-id="${esc(k.id)}" title="Skip this job">✕</button></div>`;
   };
-  // Grouped by location, in the order you prefer them; best fit first inside each group.
-  const groups = [...new Set(GROUP_ORDER.concat(ready.map(k => k.group || "Other")))]
-    .map(g => [g, ready.filter(k => (k.group || "Other") === g)]).filter(([, ks]) => ks.length);
+  // Grouped by location, in the order you prefer them; freshest good jobs first inside each group.
+  // Postings over 3 weeks old go to a closed "Older" list at the end: apply or skip them when you have time.
+  const current = ready.filter(k => k.urgency !== "old"), older = ready.filter(k => k.urgency === "old");
+  const groups = [...new Set(GROUP_ORDER.concat(current.map(k => k.group || "Other")))]
+    .map(g => [g, current.filter(k => (k.group || "Other") === g)]).filter(([, ks]) => ks.length);
   let html = ready.length
-    ? groups.map(([g, ks]) => `<h2>${esc(g)} · ${ks.length}</h2>` + ks.map(row).join("")).join("")
+    ? groups.map(([g, ks]) => {
+        const fresh = ks.filter(k => k.urgency === "new").length;
+        return `<h2>${esc(g)} · ${ks.length}${fresh ? ` · ${fresh} new` : ""}</h2>` + ks.map(row).join("");
+      }).join("")
     : `<h2>Ready to submit</h2><p class="note">Nothing ready. New jobs arrive with the morning run.</p>`;
+  if (older.length) html += `<details class="older"><summary>Older postings (3+ weeks) · ${older.length}</summary>` +
+    older.map(row).join("") + `</details>`;
   if (coming) html += `<p class="note">${coming} more being prepared</p>`;
   list.innerHTML = html;
   list.querySelectorAll(".job[data-url]").forEach(a => a.onclick = () => chrome.tabs.create({ url: a.dataset.url + "#rolewise-fill" }));

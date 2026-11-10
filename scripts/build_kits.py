@@ -49,6 +49,35 @@ def region_of(job):
     return HOME   # remote / unknown: answer as the user is today
 
 
+# Queue groups, in the user's order of preference (preferences.yaml fit_scoring.location_points)
+GROUP = {"uae": "Dubai / UAE", "eu": "Europe", "uk": "Europe", "in": "India", "us": "US"}
+
+
+def group(j):
+    return "Remote" if re.search(r"\bremote\b", j.get("location") or "", re.I) and region_of(j) not in GROUP else GROUP.get(region_of(j), "Other")
+
+
+def age_days(j):
+    """Days since the job was posted (date_found when the posting date isn't known)."""
+    d = str(j.get("posted") or j.get("date_found") or "")[:10]
+    try:
+        return (date.today() - date.fromisoformat(d)).days
+    except ValueError:
+        return None
+
+
+# Early applicants get read first: new postings jump the queue, ones over 3 weeks old sink to "Older".
+FRESH_DAYS, OLD_DAYS = 3, 21
+
+
+def freshness(j):
+    age = age_days(j)
+    if age is None:
+        return {"age": None, "urgency": ""}
+    urgency = "new" if age <= FRESH_DAYS else "week" if age <= 10 else "old" if age > OLD_DAYS else ""
+    return {"age": age, "posted": str(j.get("posted") or "")[:10], "urgency": urgency}
+
+
 def city_of(job):
     loc = (job.get("location") or "").split(",")[0].strip()
     return loc or "the role's city"
@@ -319,10 +348,6 @@ def main(ids):
         return "linkedin" if on_linkedin else ""   # not known yet: the add-on says how to tell
     mode = {j["id"]: apply_mode(j) for j in jobs}   # the tracker is the truth: applied/skipped jobs leave the queue
     by_id = {j["id"]: j for j in jobs}
-    # Queue groups, in the user's order of preference (preferences.yaml fit_scoring.location_points)
-    GROUP = {"uae": "Dubai / UAE", "eu": "Europe", "uk": "Europe", "in": "India", "us": "US"}
-    def group(j):
-        return "Remote" if re.search(r"\bremote\b", j.get("location") or "", re.I) and region_of(j) not in GROUP else GROUP.get(region_of(j), "Other")
     for path in sorted(KITS.glob("*.json")):
         if path.name in ("index.json", "rules.json", "status.json"):
             continue
@@ -332,7 +357,8 @@ def main(ids):
                       "fit": (by_id.get(k["id"]) or {}).get("fit_score", k.get("fit")),
                       "mode": mode.get(k["id"], ""), "group": group(by_id.get(k["id"]) or {}),
                       "location": (by_id.get(k["id"]) or {}).get("location") or "",
-                      "salary_eur": (by_id.get(k["id"]) or {}).get("salary_eur")})
+                      "salary_eur": (by_id.get(k["id"]) or {}).get("salary_eur"),
+                      **freshness(by_id.get(k["id"]) or {})})
     (KITS / "index.json").write_text(json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8")
     (KITS / "rules.json").write_text(json.dumps(RULES, indent=1, ensure_ascii=False), encoding="utf-8")
     (KITS / "status.json").write_text(json.dumps({"paused": bool(USER.get("paused")), "paused_until": USER.get("paused_until") or "",

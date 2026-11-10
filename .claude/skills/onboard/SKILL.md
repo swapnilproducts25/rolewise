@@ -3,7 +3,7 @@ name: onboard
 description: First-time setup of Rolewise for a new user — read their CV, ask ~10 short questions, create their profile, pick a CV style, connect Gmail/Drive, set up the daily run (cloud routine, or laptop), optionally install Rolewise Fill, and send a first briefing. Use for "set me up", "/onboard", or when profile/user.yaml has no name yet.
 ---
 
-# Onboard a new user (target: 20–30 minutes, most of it hands-off)
+# Onboard a new user (target: about 20 minutes, most of it hands-off)
 
 Principles: ask only what's needed to start; default everything else (from `profile/templates/`); every answer can be
 changed later with `/profile`. Be warm and brief, plain words, no jargon. One message per step. Never invent facts.
@@ -27,7 +27,7 @@ exactly; **bold** the lead phrase and the key result of each bullet; no new numb
 `flagship: true` on their 5-7 strongest bullets; the CV agents (`.claude/agents/cv-writer.md`, `cv-reviewer.md`) rely on them. Then show a
 6-line summary (name, latest role, years, top 3 strengths you see) and ask "Anything wrong or missing?". Fix, move on.
 
-## 2. Ten questions: tap, don't type
+## 2. Eight questions: tap, don't type
 Make answering effortless:
 - **Use the AskUserQuestion tool for every question with likely answers** (it shows clickable options plus "Other"
   for typing). Put your best guess from the CV first, marked "(from your CV)". Ask up to 4 questions per call.
@@ -48,12 +48,10 @@ Round B, about the search (one call):
 7. Places: options from their city/region plus "Remote" and "Open to relocating" (multi-select).
 8. Salary floor: 3 bands around the market rate for their level and city, plus "Prefer not to say" (forms then say
    "negotiable"). State the currency.
-9. CV style (its own call, after previews): build previews from THEIR CV (`python scripts/render_cv.py
-   profile/master-cv.yaml "cv-styles/<Name> - <style>.docx" <style>` for classic, modern and compact), then
-   `python scripts/to_pdf.py --styles` (it installs LibreOffice on a cloud machine if needed; if that fails, use the
-   .docx). Upload the PDFs to their Drive "Rolewise" folder (step 3) and give one link per style; on a laptop, also
-   open them. Options: Classic / Modern (Recommended) / Compact, each with a one-line description.
-10. Anything to avoid (companies, industries)? Optional: options "Nothing for now" / "Yes, let me list them".
+9. CV style: don't ask. Use **modern** (the default), build one preview from THEIR CV (`python scripts/render_cv.py
+   profile/master-cv.yaml "cv-styles/<Name> - modern.docx" modern`), save it to their Drive "Rolewise" folder (step 3)
+   and give the link: "Your CV will look like this. Say 'show me other CV styles' any time (classic, compact)."
+Companies or industries to avoid aren't asked up front: add them later with /profile when one comes up.
 
 Write `profile/user.yaml`, `profile/answers.yaml` and `profile/preferences.yaml` from `profile/templates/`, filling
 these answers in and keeping every default. Copy `profile/templates/cover-letter-guide.md` to `profile/` if missing.
@@ -69,10 +67,9 @@ Close the round with: "That's all I need. You can change any of this any time: j
 - **LinkedIn job alerts** (recommended, 2 min, they do it in LinkedIn): suggest 2–4 saved searches from Q6/Q7 with
   "Daily, Email". Rolewise reads the alert emails; it never browses LinkedIn for them on the web route.
 
-- **LinkedIn data** (optional, recommended; laptop): LinkedIn → Settings → Data privacy → Get a copy of your data (the
-  full archive arrives by email within a day). Unzip it into this folder and run
-  `python scripts/linkedin_import.py "<folder>"`: connections for referral suggestions (they stay on the laptop), past
-  applications so nothing is suggested twice, and `coach/linkedin-insights.md`.
+- **LinkedIn data**: not part of setup. After the first week, the coach suggests it once (LinkedIn → Settings → Data
+  privacy → Get a copy of your data; `python scripts/linkedin_import.py "<folder>"` on a laptop) for referral ideas and
+  past applications.
 
 ## 4. The daily run
 - **Web/phone**: create a daily cloud routine. Prefer doing it yourself with `/schedule` (or the RemoteTrigger tool):
@@ -90,17 +87,17 @@ Close the round with: "That's all I need. You can change any of this any time: j
   after they agree; they run `launchctl load …`).
 
 ## 5. Optional: Rolewise Fill (only if they have a laptop with Chrome; also run this part alone when a user says "set up Rolewise Fill")
-The add-on fills application forms. It needs this folder on the laptop: `git clone` their repo (or download it as a
-zip from GitHub), then `chrome://extensions` → Developer mode → Load unpacked → the `extension` folder, and run
-`python scripts/build_kits.py` (the laptop run does this daily). Set `fill_addon: true`. Skip it on phone-only setups.
-Then, in this order:
-1. **Local helper** (one-click Skip, applied, Pause, Debrief without tap emails): ask for the add-on's ID from
-   `chrome://extensions` (32 letters under "Rolewise Fill") and run `python scripts/install_native_host.py <id>`
-   (a per-user Chrome setting; no admin rights). Ask them to reload the add-on.
-2. **✨ Draft in forms** (optional): explain it needs their own Anthropic API key (console.anthropic.com → Billing,
+The add-on fills application forms. It needs Chrome, Python 3 and Git on the laptop (not the Claude desktop app). Steps:
+1. `git clone` their private repo (not a zip download: the queue updates through git) and run `python scripts/check_setup.py`.
+2. `chrome://extensions` → Developer mode → **Load unpacked** → the `extension` folder.
+3. `python scripts/install_native_host.py`: finds the add-on's id by itself, registers the local helper (one-click
+   Skip, applied, Pause, Debrief; a per-user Chrome setting, no admin rights) and builds the job kits. Then reload the
+   add-on. From then on the add-on's queue updates itself (the helper pulls the repo and rebuilds kits).
+Set `fill_addon: true`. Skip it on phone-only setups. Then:
+- **✨ Draft in forms** (optional): explain it needs their own Anthropic API key (console.anthropic.com → Billing,
    then API keys), billed separately from their Claude plan, a fraction of a cent per answer. They paste it on the
    add-on's options page themselves; never ask for the key in chat.
-3. Show the three ways to fill: a job in the add-on's queue; LinkedIn Easy Apply (click Easy Apply, then Fill this
+- Show the three ways to fill: a job in the add-on's queue; LinkedIn Easy Apply (click Easy Apply, then Fill this
    step on each step); any other form via the icon → **Fill this page** (Alt+Shift+F).
 
 ## 6. First results

@@ -4,7 +4,7 @@ Rolewise is a job-search assistant that runs inside Claude. Each morning it find
 CV, prepares the application and emails you a short briefing with buttons. It works from the Claude website and the
 Claude phone app. Nothing to install.
 
-Setup takes about 30 minutes. Have your CV (PDF or Word) to hand.
+Setup takes about 20 minutes. Have your CV (PDF or Word) to hand.
 
 ## What you need
 - A Claude **Pro or Max** plan (claude.ai).
@@ -18,8 +18,8 @@ Setup takes about 30 minutes. Have your CV (PDF or Word) to hand.
 2. **Connect Claude to GitHub and Google.** Go to claude.ai → Settings → **Connectors** and turn on **Gmail** and
    **Google Drive**. Then go to **claude.ai/code** and connect GitHub when it asks. Give it access to your `rolewise` repository.
 3. **Start.** At claude.ai/code (or the **Code** tab in the Claude phone app), pick your `rolewise` repository and
-   type **`/onboard`**. Rolewise reads your CV, asks about 10 short questions (roles, places, salary floor, notice
-   period...), shows you three CV styles and sets up your daily run.
+   type **`/onboard`**. Rolewise reads your CV, asks about 8 quick questions, mostly taps (roles, places, salary
+   floor, notice period...), shows you a preview of your CV and sets up your daily run.
 
 You'll get your first briefing the same day.
 
@@ -27,21 +27,23 @@ You'll get your first briefing the same day.
 1. Read the **Rolewise briefing** email (phone is fine). Rolewise has already prepared the good matches: a tailored
    CV, a cover letter and form answers for each. Buttons let you skip one, pause Rolewise, or answer a question; a tap
    opens an email to yourself, hit send, and the next run acts on it.
-2. To apply: with the add-on (laptop), click a job in its queue, check the filled form and click Submit. Without it,
+2. Apply to the **New** ones first: postings from the last 3 days, when early applications get read first. The queue
+   keeps about 10 ready jobs per location; ones you don't act on for 3 weeks retire themselves.
+3. To apply: with the add-on (laptop), click a job in its queue, check the filled form and click Submit. Without it,
    tap **Open job**, upload the CV from the **CV** link and paste the answers from the card.
-3. After an interview, jot rough notes (the add-on's **Debrief** button, or `/debrief <company>`).
+4. After an interview, jot rough notes (the add-on's **Debrief** button, or `/debrief <company>`).
 
 Change anything, any time, in plain words: open a session in claude.ai/code and type `/profile` ("add Berlin",
 "my notice is now 2 weeks", "use the compact CV"). Also handy: `/prep <company>` before an interview,
 `/debrief <company>` after one, `/coach` for a weekly review.
 
 **Optional, if you have a laptop with Chrome:** the **Rolewise Fill** add-on fills application forms for you, including
-LinkedIn Easy Apply (step by step) and any other form via **Fill this page**. It needs the Claude desktop app and
-Python on that laptop, so it suits people comfortable installing software (about 20 minutes). Ask Rolewise
+LinkedIn Easy Apply (step by step) and any other form via **Fill this page**. It needs Chrome, Python and Git on that
+laptop (about 10 minutes). Ask Rolewise
 "set up Rolewise Fill" and it walks you through it, including the small local helper that makes Skip, Pause and
 Debrief one click. Add your own Anthropic API key in its settings for **✨ Draft** answers inside forms.
 
-**Optional, recommended:** import your LinkedIn data (LinkedIn → Settings → Data privacy → Get a copy of your data).
+**Optional, after your first week:** import your LinkedIn data (LinkedIn → Settings → Data privacy → Get a copy of your data).
 Rolewise uses your connections to suggest referrals, your past applications so nothing is suggested twice, and
 shows where your LinkedIn profile and CV disagree.
 

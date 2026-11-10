@@ -2,8 +2,9 @@
 
   1. Every career-page match (scripts/ats_scan.py scan), in every target location, is in the tracker
      (shortlisted, or skipped with a reason).
-  2. Shortlisted jobs were prepared, best fit first, until 12 are ready today or none are left
-     (preferences.yaml auto_prepare_min_fit; at most 2 per company per day).
+  2. Every location group (Dubai / UAE, Europe, India, Remote...) has 10 current jobs ready to apply to (posted in the
+     last 3 weeks), or no shortlisted job left to prepare there. Freshest good jobs first (fit + a boost for new
+     postings), preferences.yaml auto_prepare_min_fit and queue_per_location; at most 2 per company and 30 jobs a day.
   3. Every job made ready today has a CV review by the cv-reviewer agent (applications/<id>/cv-review.md).
 
 Usage: python scripts/run_check.py [--no-scan]   exit code 1 while something is open
@@ -17,9 +18,13 @@ from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from build_kits import freshness, group  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
-DAILY_PREP = 12
+DAILY_MAX = 30
 PER_COMPANY = 2
+BOOST = {"new": 8, "week": 4, "old": -6}   # same order as the add-on's queue
 
 
 def main(scan=True):
@@ -42,12 +47,18 @@ def main(scan=True):
 
     ready_today = [j for j in jobs if made_ready_today(j)]
     per_co = Counter(j["company"] for j in ready_today)
-    waiting = [j for j in jobs if j["status"] == "shortlisted" and (j.get("fit_score") or 0) >= min_fit
-               and per_co[j["company"]] < PER_COMPANY]
-    if len(ready_today) < DAILY_PREP and waiting:
-        top = sorted(waiting, key=lambda j: -(j.get("fit_score") or 0))[:DAILY_PREP - len(ready_today)]
-        problems.append(f"{len(ready_today)} prepared today, {len(waiting)} shortlisted still waiting; prepare next:")
-        problems += [f"   {j.get('fit_score')}  {j['id']}" for j in top]
+    target = prefs.get("queue_per_location", 10)
+    rank = lambda j: (j.get("fit_score") or 0) + BOOST.get(freshness(j)["urgency"], 0)
+    if len(ready_today) < DAILY_MAX:
+        for g in sorted({group(j) for j in jobs if j["status"] in ("ready", "shortlisted")}):
+            current = [j for j in jobs if j["status"] == "ready" and group(j) == g and freshness(j)["urgency"] != "old"]
+            waiting = [j for j in jobs if j["status"] == "shortlisted" and group(j) == g
+                       and (j.get("fit_score") or 0) >= min_fit and per_co[j["company"]] < PER_COMPANY]
+            if len(current) < target and waiting:
+                top = sorted(waiting, key=lambda j: -rank(j))[:target - len(current)]
+                problems.append(f"{g}: {len(current)} current jobs ready (target {target}), {len(waiting)} shortlisted "
+                                f"waiting; prepare next:")
+                problems += [f"   {j.get('fit_score')}  {freshness(j)['age']}d  {j['id']}" for j in top]
 
     unreviewed = [j["id"] for j in ready_today if not (ROOT / "applications" / j["id"] / "cv-review.md").exists()]
     if unreviewed:
@@ -58,7 +69,8 @@ def main(scan=True):
     if problems:
         print("RUN NOT DONE\n" + "\n".join(problems))
         sys.exit(1)
-    print(f"Run complete: {len(ready_today)} prepared today, career-page matches all tracked, all CVs reviewed.")
+    print(f"Run complete: {len(ready_today)} prepared today, every location's queue full (or nothing left to prepare), "
+          f"career-page matches all tracked, all CVs reviewed.")
 
 
 if __name__ == "__main__":

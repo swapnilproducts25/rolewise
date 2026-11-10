@@ -1,7 +1,8 @@
 """Register Rolewise Fill's local helper with Chrome (native messaging). Run once per laptop.
 
-Usage: .venv/Scripts/python scripts/install_native_host.py <extension id>
-The extension id is on chrome://extensions under Rolewise Fill (32 letters a-p).
+Usage: python scripts/install_native_host.py [<extension id>]
+Load the add-on first (chrome://extensions, Load unpacked, the extension folder): the id is then found in Chrome's
+profile files. Pass it only if that fails (32 letters a-p under Rolewise Fill). Also builds the add-on's job kits.
 Windows: writes the host manifest next to the helper and one per-user registry key
   HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.rolewise.fill  (no admin rights needed).
 macOS: writes the manifest to ~/Library/Application Support/Google/Chrome/NativeMessagingHosts/.
@@ -45,7 +46,29 @@ def main(ext_id):
     print(f"Registered {HOST} for extension {ext_id}.\nReload Rolewise Fill in chrome://extensions to use it.")
 
 
+def find_ext_id():
+    """The id Chrome gave the unpacked add-on, read from the profiles' Preferences files."""
+    import os
+    base = (Path(os.environ.get("LOCALAPPDATA", "")) / "Google/Chrome/User Data" if sys.platform == "win32"
+            else Path.home() / "Library/Application Support/Google/Chrome" if sys.platform == "darwin"
+            else Path.home() / ".config/google-chrome")
+    want = str((ROOT / "extension").resolve()).lower().rstrip("/\\")
+    for prefs in list(base.glob("*/Secure Preferences")) + list(base.glob("*/Preferences")):
+        try:
+            settings = json.loads(prefs.read_text(encoding="utf-8")).get("extensions", {}).get("settings", {})
+        except (OSError, ValueError):
+            continue
+        for ext_id, info in settings.items():
+            if str(info.get("path", "")).lower().rstrip("/\\") == want:
+                return ext_id
+    return None
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    main(sys.argv[1])
+    ext_id = sys.argv[1] if len(sys.argv) > 1 else find_ext_id()
+    if not ext_id:
+        sys.exit("Couldn't find Rolewise Fill in Chrome. Load it first (chrome://extensions, Developer mode, Load unpacked, "
+                 "the extension folder), then run this again, or pass the id shown under Rolewise Fill.")
+    main(ext_id)
+    import subprocess
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_kits.py")], cwd=ROOT)

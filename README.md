@@ -11,6 +11,8 @@ Free and open source. Your data stays in your own accounts.
   Each role is scored for fit with a one-line reason; closed postings and roles you already applied to are dropped.
 - **Prepares every good match without waiting for you**: a tailored CV (only facts from your own CV, in one of three
   clean styles), a cover letter, and answers to the form's own questions, ready in a queue.
+- **A queue that keeps moving**: about 10 ready jobs per location you target, newest postings first (early
+  applications get read first). Jobs you leave alone for 3 weeks retire themselves to make room.
 - **Two agents for every CV**: a writer tailors it, and a separate reviewer checks it against your own CV and the job
   (true facts only, nothing important dropped, no vague or nit-picky bullets). A weak tailoring is never used; your
   own CV goes out instead.
@@ -25,7 +27,7 @@ Free and open source. Your data stays in your own accounts.
   (CV, cover letter, answers, salary band, dropdowns). Works on Greenhouse, Lever, Ashby, Workable, SmartRecruiters,
   Homerun, LinkedIn Easy Apply (step by step, you click Next) and Workday, and on any other form with
   **Fill this page** (Alt+Shift+F). You check the form and click Submit. Skip, Pause and interview Debrief notes are
-  one click in the add-on. Setup needs the Claude desktop app and Python on your laptop.
+  one click in the add-on. Setup needs Chrome, Python and Git on your laptop (about 10 minutes).
   Optional: your own Anthropic API key in the add-on's settings adds **✨ Draft / Redraft / Shorter** under unusual
   questions, written into the field from your CV and the job description (a fraction of a cent per answer).
 
@@ -34,7 +36,7 @@ Free and open source. Your data stays in your own accounts.
 - A **Gmail** address.
 - A free **GitHub** account (for your private copy).
 
-## Get started (about 30 minutes)
+## Get started (about 20 minutes)
 Click **Use this template** → **Create a new repository**, choose **Private**, then follow
 **[START-HERE.md](START-HERE.md)**.
 

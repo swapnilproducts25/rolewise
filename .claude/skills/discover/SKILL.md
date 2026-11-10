@@ -51,8 +51,10 @@ Use the Chrome extension (the user's logged-in session) and WebSearch. Rotate so
 For each job with score ≥ `thresholds.shortlist`:
 ```
 .venv/Scripts/python scripts/tracker.py add --company "..." --title "..." --location "..." --work-mode hybrid \
-  --url "<canonical job URL>" --source linkedin --fit 78 --summary "<1 line: why it fits / main gap>" --status shortlisted
+  --url "<canonical job URL>" --source linkedin --fit 78 --summary "<1 line: why it fits / main gap>" --status shortlisted   --posted 2026-11-08
 ```
+`--posted` = the posting date (the scan's 5th column, the job page, or "posted 3 days ago" in an alert email, as a date).
+Fresh postings jump the queue, so record it whenever it's known.
 For LinkedIn jobs, also record how they're applied to: `--set easy_apply=yes` when the alert or job page says "Easy Apply", `easy_apply=no` when it sends you to the company's site (then set `apply_url` to that site if you can see it). Save the JD to `applications/<id>/jd.md` (title, company, location, URL, date seen, full text). Then run `.venv/Scripts/python scripts/fit.py` (final fit = role fit + location preference + pay). Jobs below threshold: don't add (keep the tracker clean) unless notable.
 
 ## 4. Report to the user

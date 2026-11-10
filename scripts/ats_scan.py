@@ -8,6 +8,7 @@ Registry: profile/target-companies.yaml  ({slug: {ats, name?, note?}}).
 Supported: Greenhouse, Lever, Ashby (public, no login). Polite: 1 request per company.
 """
 import json
+from datetime import datetime, timezone
 import re
 import sys
 import time
@@ -47,7 +48,7 @@ PLACE = re.compile(_scan.get("place_regex") or _any(_places), re.I)
 
 FEEDS = {
     "greenhouse": ("https://boards-api.greenhouse.io/v1/boards/{}/jobs", lambda d: [
-        (j["title"], (j.get("location") or {}).get("name", ""), j["absolute_url"], j.get("updated_at", "")) for j in d.get("jobs", [])]),
+        (j["title"], (j.get("location") or {}).get("name", ""), j["absolute_url"], j.get("first_published") or j.get("updated_at", "")) for j in d.get("jobs", [])]),
     "lever": ("https://api.lever.co/v0/postings/{}?mode=json", lambda d: [
         (j["text"], (j.get("categories") or {}).get("location", "") + (" / " + j.get("workplaceType", "") if j.get("workplaceType") else ""),
          j["hostedUrl"], str(j.get("createdAt", ""))) for j in d]),
@@ -65,6 +66,14 @@ FEEDS = {
         (j["title"], ", ".join(filter(None, [j.get("city", ""), j.get("country", "")])) + (" / remote" if j.get("telecommuting") else ""),
          j.get("url") or j.get("shortlink", ""), j.get("published_on", "")) for j in d.get("jobs", [])]),
 }
+
+
+def posted_date(v):
+    """Posting date as YYYY-MM-DD (Lever gives epoch milliseconds)."""
+    v = str(v or "")
+    if v.isdigit():
+        return datetime.fromtimestamp(int(v) / 1000, timezone.utc).date().isoformat()
+    return v[:10]
 
 
 def fetch(ats, slug):
@@ -110,7 +119,7 @@ def scan(show_all=False):
             if TITLE.search(title) and not TITLE_EXCLUDE.search(title) and PLACE.search(loc or "") and not (US_ONLY.search(loc or "") and not PLACE.search(re.sub(US_ONLY, '', loc or ''))):
                 new = url.split("?")[0].rstrip("/").lower() not in tracked
                 if new or show_all:
-                    hits.append((info.get("name", slug), title, loc, url, str(posted)[:10], "" if new else "TRACKED"))
+                    hits.append((info.get("name", slug), title, loc, url, posted_date(posted), "" if new else "TRACKED"))
         time.sleep(0.3)
     for h in sorted(hits):
         print(" | ".join(h))
