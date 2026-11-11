@@ -94,7 +94,7 @@ RULES = [
     # Free-text questions that mention "phone" or "email" in passing: before the contact rules below
     [r"how many years|years of (work |relevant |professional )?experience|years' experience", "years"],
     [r"adjustment|accommodat|if a (video|phone) (or (video|phone) )?interview is not", "adjustments"],
-    [r"what interests you|why (do you want|are you interested|would you like)|why .{0,40}(join|apply|this role|\bus\b)|motivat|excites? you|excited about", "why"],
+    [r"what interests you|why (do you want|are you interested|would you like)|why .{0,40}(join|apply|this role|\bus\b)|motivat|excites? you|excited about|your interest (in )?working|interest in (this|the) (role|position|company)", "why"],
     [r"whatsapp", "whatsapp"],
     [r"\bsms\b|text messages", None],
     [r"e-?mail", "email"],
@@ -115,6 +115,12 @@ RULES = [
     [r"criminal|convict", "criminal"],
     [r"transgender|neurodiver|household earner", "diversity"],
     [r"brighthire|record(ed|ing)? (the |our |your )?(interview|conversation|call)|interview recording", "recording_consent"],
+    # Standing rule (2026-10-29): standard consent and data-sharing questions get a yes, as a dropdown or a tick box.
+    [r"\bconsent\b|do you (agree|acknowledge)|privacy (policy|notice|statement)|data (protection|processing|retention|sharing)|gdpr|"
+     r"(share|shared|sharing|transfer) (my |your )?(application|information|data|details)", "consent"],
+    # "Are you currently residing in this country?": Yes only when the job is in the country the user lives in.
+    [r"(currently )?(resid(e|ing)|liv(e|ing)|based) in (this|the) (country|location|city|region)|"
+     r"do you (currently )?(live|reside) in\b", "lives_in_job_country"],
     # "Are you authorised to work…?" first: its label often mentions sponsorship too ("we sponsor some roles").
     [r"authori[sz]ed to work|right to work|eligible to work|legally (able|permitted) to work|work permit", "authorised"],
     [r"(require|need|will you).{0,60}sponsor|sponsorship (now|in the future)|visa sponsorship", "sponsorship"],
@@ -217,6 +223,8 @@ def base_answers(profile, job):
            if str(w.get(f"{region}_authorized") or "").lower().startswith("yes")
            else {"sponsorship": [w[f"requires_sponsorship_{region}"]]} if w.get(f"requires_sponsorship_{region}") else {}),
         "job_office": [city_of(job)] + job_country(job),
+        "lives_in_job_country": ["Yes" if {x.lower() for x in country} & {x.lower() for x in job_country(job)} else "No"],
+        "consent": ["Yes", "I consent", "I agree", "I acknowledge", "Agree", "Accept"],
         "relocate": ["Yes"],
         "hybrid": ["Yes"], "previously_worked": ["No"],
         "heard": [std.get("how_did_you_hear", "Job Board"), "Job Board", "Company website", "Careers", "LinkedIn",
@@ -239,6 +247,23 @@ def base_answers(profile, job):
     }
 
 
+_SR = {}
+
+
+def sr_form(company, posting_id):
+    """The SmartRecruiters apply page for a posting (its publication uuid comes from the public postings API)."""
+    if (company, posting_id) not in _SR:
+        try:
+            import urllib.request
+            with urllib.request.urlopen(f"https://api.smartrecruiters.com/v1/companies/{company}/postings/{posting_id}", timeout=8) as r:
+                uuid = json.loads(r.read()).get("uuid")
+            _SR[company, posting_id] = (f"https://jobs.smartrecruiters.com/oneclick-ui/company/{company}/publication/{uuid}"
+                                        f"?dcr_ci={company}") if uuid else ""
+        except Exception:
+            _SR[company, posting_id] = ""
+    return _SR[company, posting_id]
+
+
 def form_urls(job):
     """Kit URLs, the form first: a Lever or Ashby posting page has no form until you click Apply."""
     urls = []
@@ -246,6 +271,9 @@ def form_urls(job):
         if not u:
             continue
         base = u.split("?")[0].rstrip("/")
+        sr = re.match(r"https://jobs\.smartrecruiters\.com/([^/]+)/(\d{6,})", base)
+        if sr and sr_form(*sr.groups()):   # SmartRecruiters: the posting page has no form; open the apply page itself
+            urls.append(sr_form(*sr.groups()))
         if re.match(r"https://jobs\.lever\.co/[^/]+/[0-9a-f-]{20,}$", base):
             urls.append(base + "/apply")
         elif re.match(r"https://jobs\.ashbyhq\.com/[^/]+/[0-9a-f-]{20,}$", base):

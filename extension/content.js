@@ -18,6 +18,15 @@
     .find(d => d.offsetParent !== null && d.querySelector("input, select, textarea")
       && /easy apply|apply to|contact info|resume|additional questions|review your application|work authori/i.test(d.innerText || ""));
   let ROOT = document;   // where fill() looks: the Easy Apply dialog on LinkedIn, the whole page elsewhere
+  // Every match of a selector, including inside open shadow roots: SmartRecruiters' apply page (spl-* components)
+  // keeps every field in shadow DOM, where a plain querySelectorAll finds nothing.
+  function deepAll(root, sel) {
+    const out = [...root.querySelectorAll(sel)];
+    const walk = r => r.querySelectorAll("*").forEach(n => { if (n.shadowRoot) { out.push(...n.shadowRoot.querySelectorAll(sel)); walk(n.shadowRoot); } });
+    walk(root);
+    return out;
+  }
+  const FORM_SIGNS = "input[type=file], #first_name, input[name*=email i], input[autocomplete=email], input[type=email]";
   const norm = s => (s || "").replace(/\s+/g, " ").trim();
   const low = s => norm(s).toLowerCase();
 
@@ -90,6 +99,8 @@
       t = el.getAttribute("aria-labelledby").split(" ").map(id => document.getElementById(id)?.innerText || "").join(" ");
     }
     if (!t) t = el.getAttribute("aria-label") || "";
+    const host = el.getRootNode && el.getRootNode().host;   // a field inside a web component: its label lives there
+    if (!t && host) t = host.getAttribute("label") || labelText(el.getRootNode().querySelector("label")) || "";
     if (!t) {
       const box = el.closest(".application-question")
         || el.closest("fieldset, .field, .select__container, [class*=field], [class*=question], li, .form-group");
@@ -133,8 +144,8 @@
   function setNative(el, value) {
     const proto = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     Object.getOwnPropertyDescriptor(proto, "value").set.call(el, value);
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
+    el.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
     el.dispatchEvent(new Event("blur", { bubbles: true }));
   }
 
@@ -218,7 +229,7 @@
     };
     const type = v => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, v);
-      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
     };
     const choose = async want => {
       for (let i = 0; i < 10; i++) {
@@ -242,12 +253,26 @@
     return false;
   }
 
+  // The nearest visible words around a field, through web-component hosts ("Resume *" over SmartRecruiters' drop zone;
+  // its other drop zone, "or Apply With Indeed", only imports a CV to pre-fill the form and is left alone).
+  function nearText(el) {
+    let n = el;
+    for (let k = 0; k < 8 && n; k++) {
+      n = (n.getRootNode() && n.getRootNode().host) || n.parentElement;
+      for (let up = n, j = 0; up && j < 4; j++, up = up.parentElement) {
+        const t = norm(up.innerText || "");
+        if (t) return t.slice(0, 60);
+      }
+    }
+    return "";
+  }
+
   async function attachFiles(kit, report) {
     // Upload widgets (Homerun, Workable) can render after the text fields: wait up to 8s for them.
-    for (let i = 0; i < (STEP_MODE ? 2 : 16) && !ROOT.querySelector("input[type=file]"); i++) await sleep(500);
-    const inputs = [...ROOT.querySelectorAll("input[type=file]")];
+    for (let i = 0; i < (STEP_MODE ? 2 : 16) && !deepAll(ROOT, "input[type=file]").length; i++) await sleep(500);
+    const inputs = deepAll(ROOT, "input[type=file]");
     for (const input of inputs) {
-      const L = low(labelFor(input) + " " + input.id + " " + input.name);
+      const L = low(labelFor(input) + " " + input.id + " " + input.name + " " + nearText(input));
       const kind = /cover/.test(L) ? "cover_letter" : /resume|cv\b|curriculum/.test(L) ? "cv" : null;
       if (!kind || !kit.files[kind] || (input.files && input.files.length)) continue;
       const path = kit.files[kind];
@@ -262,8 +287,8 @@
       const dt = new DataTransfer();
       dt.items.add(new File([blob], name, { type }));
       input.files = dt.files;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
       report.filled.push(`${kind === "cv" ? "CV" : "Cover letter"}: ${name}`);
     }
   }
@@ -276,7 +301,7 @@
 
     const seen = new Set();
     const answered = new Set();
-    const controls = [...ROOT.querySelectorAll("input, textarea, select")]
+    const controls = deepAll(ROOT, "input, textarea, select")
       .filter(el => !["hidden", "file", "submit", "button", "search"].includes(el.type) && !el.disabled
         && !(el.id || "").startsWith("g-recaptcha") && el.offsetParent !== null);
 
@@ -331,7 +356,7 @@
         const v = lookup(label, kit);
         if (v === IGNORE) continue;
         const hit = v && pick([...el.options].map(o => ({ el: o, text: o.text })), v);
-        if (hit) { el.value = hit.el.value; el.dispatchEvent(new Event("change", { bubbles: true })); report.filled.push(label); }
+        if (hit) { el.value = hit.el.value; el.dispatchEvent(new Event("change", { bubbles: true, composed: true })); report.filled.push(label); }
         else if (el.required) report.missing.push(label);
         continue;
       }
@@ -383,7 +408,7 @@
         for (const place of tries) {
           el.focus();
           Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, place);
-          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
           el.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: place.slice(-1) }));
           el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: place.slice(-1) }));
           for (let i = 0; i < 10 && !opt; i++) {
@@ -401,7 +426,7 @@
       else if (el.required || el.getAttribute("aria-required") === "true") report.missing.push(label);
     }
     if (!second) await attachFiles(kit, report);   // upload boxes that appeared while the form was being filled
-    if (!second && kit.files.cv && ROOT.querySelector("input[type=file]") && !report.filled.some(f => f.startsWith("CV"))) report.missing.push("CV upload (attach it yourself)");
+    if (!second && kit.files.cv && deepAll(ROOT, "input[type=file]").length && !report.filled.some(f => f.startsWith("CV"))) report.missing.push("CV upload (attach it yourself)");
     report.missing.push(...unanswered(controls));
     report.drafted = [...drafted].filter(l => report.filled.includes(l));
     controls.filter(el => report.drafted.includes(labelFor(el)) || report.drafted.includes(questionLabel(el)))
@@ -423,7 +448,8 @@
       const t = (el.labels && el.labels[0] ? el.labels[0].innerText : "") || (box ? (box.querySelector("label, legend") || {}).innerText || "" : "");
       return /\*/.test(t);
     };
-    const needed = el => el.required || el.getAttribute("aria-required") === "true" || starred(el);
+    const needed = el => el.required || el.getAttribute("aria-required") === "true" || starred(el)
+      || !!(el.getRootNode().host && el.getRootNode().host.hasAttribute("required"));
     const out = [], radios = new Set();
     for (const el of controls) {
       if (!el.isConnected || el.offsetParent === null || el.disabled) continue;
@@ -461,7 +487,7 @@
     if (LINKEDIN) return !!linkedinModal();
     if (/confirmation|thank-?you|submitted/i.test(location.pathname + location.search)) return false;
     if (DONE_TEXT.test((document.body && document.body.innerText || "").slice(0, 4000))) return false;
-    return !!document.querySelector("input[type=file], #first_name, input[name*=email i], input[autocomplete=email], input[type=email]");
+    return deepAll(document, FORM_SIGNS).length > 0;
   }
   function markSubmitted() {
     let id = null;
@@ -472,7 +498,7 @@
     let clicked = 0;
     try { clicked = +sessionStorage.getItem("rolewise:submitClicked") || 0; } catch (e) {}
     const text = document.body && document.body.innerText || "";
-    const formShown = [...document.querySelectorAll("input[type=file], #first_name, input[type=email], input[autocomplete=email], input[name*=email i]")]
+    const formShown = deepAll(document, FORM_SIGNS)
       .some(e => e.offsetParent !== null);
     const said = DONE_TEXT.test(text.slice(0, 4000)) || (!LINKEDIN && !formShown && DONE_TEXT.test(text));
     const gone = !LINKEDIN && !formShown && Date.now() - clicked < 10 * 60000;
@@ -663,7 +689,7 @@
     setBusy(false);
     const esc = x => String(x).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
     // "✨ Draft" is offered only for written answers, never for dropdowns or pickers.
-    const writable = new Set([...ROOT.querySelectorAll("textarea, input[type=text]")].filter(freeText).map(labelFor));
+    const writable = new Set(deepAll(ROOT, "textarea, input[type=text]").filter(freeText).map(labelFor));
     const draftable2 = x => draftable(x) && writable.has(x);
     // Questions in a few words: up to the first "?" (or sentence end), at most 60 characters.
     const short = x => { const s = norm(x).match(/^.*?\?|^.*?\.(?=\s)|^.*/)[0]; return s.length > 60 ? s.slice(0, 57).trimEnd() + "…" : s; };
@@ -687,10 +713,10 @@
       e.preventDefault();
       const [kind, i] = [a.dataset.rwGo[0], +a.dataset.rwGo.slice(1)];
       const want = (kind === "m" ? r.missing : r.drafted)[i];
-      const el = [...ROOT.querySelectorAll("input, select, textarea")].find(c => labelFor(c) === want || questionLabel(c) === want);
+      const el = deepAll(ROOT, "input, select, textarea").find(c => labelFor(c) === want || questionLabel(c) === want);
       if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); try { el.focus({ preventScroll: true }); } catch (err) {} }
     });
-    addDraftBars(kit, [...ROOT.querySelectorAll("textarea, input[type=text]")], r.missing.concat(r.drafted || []));
+    addDraftBars(kit, deepAll(ROOT, "textarea, input[type=text]"), r.missing.concat(r.drafted || []));
     // Get out of the way of the form's own Submit button: collapse to the edge tab, which keeps the status.
     if (r.missing.length) {
       setTab(`${r.missing.length} TO CHECK`, "#9a5b00");
