@@ -139,6 +139,11 @@ def compact_list(sec, items, date):
     """Prepared jobs as rows: company and role, where and why it fits, the CV and cover letter, a fit badge and Skip.
     Facts come from the tracker by job id, so every row has them even when the run's JSON is thin."""
     rows = []
+    # Newest good postings first (fit + 8 if posted in the last 3 days, + 4 this week), as in the Inbox and the add-on.
+    def rank(i):
+        job = JOBS.get(i.get("id") or next((a.get("target") for a in i.get("actions", []) if a.get("verb") == "SKIP"), ""), {})
+        return -((i.get("fit") or job.get("fit_score") or 0) + {"new": 8, "week": 4, "old": -6}.get(freshness(job)["urgency"] if job else "", 0))
+    items = sorted(items, key=rank)
     for i in items[:MAX_LIST]:
         skip = next((a for a in i.get("actions", []) if a.get("verb") == "SKIP"), None)
         link = next((a for a in i.get("actions", []) if a.get("url")), None)

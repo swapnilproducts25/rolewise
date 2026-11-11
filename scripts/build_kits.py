@@ -34,7 +34,14 @@ REGION_WORDS = {   # job location words -> region key (matches user.yaml home_re
     "in": ("india", "bangalore", "bengaluru", "mumbai", "pune", "delhi", "gurgaon", "gurugram", "hyderabad"),
     "eu": ("ireland", "dublin", "germany", "berlin", "munich", "netherlands", "amsterdam", "france", "paris", "spain",
            "madrid", "barcelona", "portugal", "lisbon", "sweden", "denmark", "finland", "belgium", "austria",
-           "italy", "poland", "europe", "emea"),
+           "italy", "poland", "europe", "emea", "copenhagen", "stockholm", "oslo", "norway", "helsinki", "warsaw", "krakow",
+           "prague", "czech", "vienna", "zurich", "geneva", "switzerland", "brussels", "milan", "rome", "valencia",
+           "porto", "hamburg", "frankfurt", "cologne", "rotterdam", "the hague", "utrecht", "luxembourg", "tallinn",
+           "estonia", "riga", "vilnius", "lithuania", "bucharest", "romania", "budapest", "athens", "greece", "cork",
+           "galway", "lyon", "toulouse", "nice", "remote europe", "eu"),
+    "gcc": ("saudi", "riyadh", "jeddah", "qatar", "doha", "bahrain", "manama", "kuwait", "oman", "muscat"),
+    "other": ("singapore", "australia", "sydney", "melbourne", "canada", "toronto", "vancouver", "tokyo", "japan",
+              "hong kong", "brazil", "mexico", "south africa", "cape town", "nairobi", "lagos", "cairo", "istanbul", "tel aviv"),
 }
 HOME = USER.get("home_region") or "other"
 

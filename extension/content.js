@@ -267,7 +267,36 @@
     return "";
   }
 
+  const hostTags = el => { const t = []; for (let n = el; n && n.getRootNode && n.getRootNode().host; n = n.getRootNode().host) {
+    for (let up = n.getRootNode().host; up; up = up.parentElement) t.push(up.tagName.toLowerCase()); } return t; };
+  async function putFile(input, kit, kind) {
+    const path = kit.files[kind], name = path.split("/").pop();
+    const blob = await dataUrlToBlob(await kitFile(path, "dataurl"));
+    const type = name.endsWith(".pdf") ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], name, { type }));
+    input.files = dt.files;
+    input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+    return name;
+  }
+  // SmartRecruiters asks for Experience and Education as separate entries ("Add" per job). Its own "apply with resume"
+  // box reads the CV and fills them, with name and contact details: so the CV goes there first, once per form.
+  async function smartRecruitersPrefill(kit, report) {
+    if (location.hostname !== "jobs.smartrecruiters.com" || !kit.files.cv) return;
+    const zone = deepAll(document, "input[type=file]").find(i => hostTags(i).includes("oc-apply-with-resume"));
+    const key = `rolewise:srPrefill:${kit.id}:${location.pathname}`;
+    try { if (!zone || sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1"); } catch (e) { if (!zone) return; }
+    show("Reading your CV into the form (experience and education)…");
+    await putFile(zone, kit, "cv");
+    const filledIn = () => /\S/.test(((document.querySelector("oc-experience") || {}).innerText || "").replace(/Experience|\*|Add/g, ""));
+    for (let i = 0; i < 40 && !filledIn(); i++) await sleep(500);   // up to 20 s for the CV to be read
+    await sleep(1500);
+    report.filled.push(filledIn() ? "Experience and education (read from your CV: check the dates)" : "CV sent to the form's autocomplete");
+  }
+
   async function attachFiles(kit, report) {
+    await smartRecruitersPrefill(kit, report);
     // Upload widgets (Homerun, Workable) can render after the text fields: wait up to 8s for them.
     for (let i = 0; i < (STEP_MODE ? 2 : 16) && !deepAll(ROOT, "input[type=file]").length; i++) await sleep(500);
     const inputs = deepAll(ROOT, "input[type=file]");
@@ -613,7 +642,10 @@
   const freeText = el => (el.tagName === "TEXTAREA" || (el.type === "text" && !el.closest("[class*=select]") && el.getAttribute("role") !== "combobox"))
     && !el.parentElement.querySelector("input[name=selectedLocation]");
   function draftBar(el, kit, question) {
-    if (el.nextElementSibling && el.nextElementSibling.dataset && el.nextElementSibling.dataset.rolewiseBar) return;
+    // A field inside a web component (SmartRecruiters): the bar goes under the component, in the page itself.
+    let anchor = el;
+    while (anchor.getRootNode && anchor.getRootNode().host) anchor = anchor.getRootNode().host;
+    if (anchor.nextElementSibling && anchor.nextElementSibling.dataset && anchor.nextElementSibling.dataset.rolewiseBar) return;
     const bar = document.createElement("div");
     bar.dataset.rolewiseBar = "1";
     bar.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0 10px;font:13px/1.3 -apple-system,Segoe UI,Arial,sans-serif";
@@ -653,13 +685,15 @@
     draftBtn.onclick = () => ask("");
     refine.forEach(([b, how]) => { b.hidden = !el.value; b.onclick = () => ask(how); });
     bar.append(draftBtn, ...refine.map(r => r[0]), status);
-    el.insertAdjacentElement("afterend", bar);
+    anchor.insertAdjacentElement("afterend", bar);
   }
   function addDraftBars(kit, controls, labels) {
     for (const el of controls) {
       if (!el.isConnected || el.offsetParent === null || !freeText(el)) continue;
       const q = labelFor(el);
-      if (labels.includes(q) && draftable(q)) draftBar(el, kit, q);
+      // Open questions, drafted answers, and every written answer already in a text box (Redraft, Shorter...).
+      const written = el.tagName === "TEXTAREA" && norm(el.value).length > 40;
+      if ((labels.includes(q) || written) && draftable(q)) draftBar(el, kit, q);
     }
   }
 

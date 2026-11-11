@@ -28,4 +28,5 @@ daily_caps:
 # Jobs scoring at least this fit are prepared without waiting for a Prepare tap (8 a day, 2 per company);
 # below it they wait in Quick decide. Set 101 to always ask. 
 auto_prepare_min_fit: 60
-queue_per_location: 10        # keep this many current jobs ready in each location group (Rolewise Fill queue)
+prepare_per_location: 10      # new jobs prepared per location group every run, even if earlier ones are still waiting
+fresh_min_fit: 60             # postings from the last 7 days with at least this fit are always prepared the same day
