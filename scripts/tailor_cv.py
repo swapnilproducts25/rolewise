@@ -6,6 +6,8 @@ tailor.yaml keys (all optional; without the file the master CV is used as is):
   summary: "..."             # <= ~420 chars; **bold** allowed
   first: [bullet ids]        # move these bullets to the top of their role, in this order
   hide: [bullet ids]         # drop these bullets
+  show: [bullet ids]         # un-hide bullets the master hides (e.g. gt-trust-research for research/trust roles)
+  skills: [{label, items}]   # skills block reordered (same skills as master)
   text: {bullet id: "..."}   # reworded bullets (same facts as master; <= 210 chars)
 
 Usage: .venv/Scripts/python scripts/tailor_cv.py <job id> [<job id> ...]
@@ -42,7 +44,10 @@ def tailor(job_id):
     for key in ("headline", "summary"):
         if spec.get(key):
             cv[key] = spec[key]
-    first, hide, text = spec.get("first", []), set(spec.get("hide", [])), spec.get("text", {})
+    if spec.get("skills"):   # ordered list of {label, items}; only reorders master skills
+        cv["skills"] = spec["skills"]
+    first, hide, text = spec.get("first", []),set(spec.get("hide", [])), spec.get("text", {})
+    show = set(spec.get("show", []))
     known = set()
     for e in cv["experience"] + cv["projects"]:
         bullets = e["bullets"]
@@ -51,9 +56,11 @@ def tailor(job_id):
         for b in bullets:
             if b["id"] in text:
                 b["text"] = text[b["id"]]
+            if b["id"] in show:
+                b.pop("hide", None)
             if b["id"] in hide:
                 b["hide"] = True
-    unknown = (set(first) | hide | set(text)) - known
+    unknown = (set(first) | hide | show | set(text)) - known
     problems = [f"unknown bullet ids: {sorted(unknown)}"] if unknown else []
     if len(plain(cv["summary"]).split()) and len(plain(cv["summary"])) > 430:
         problems.append(f"summary {len(plain(cv['summary']))} chars > 430")

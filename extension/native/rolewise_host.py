@@ -71,6 +71,8 @@ def handle(msg):
     if action == "sync":   # the add-on was opened: fetch what the cloud run prepared and rebuild the job packs
         if (ROOT / ".git").exists():
             subprocess.run(["git", "pull", "-q", "--rebase", "--autostash"], cwd=ROOT, capture_output=True, timeout=60)
+        # Cloud runs can't build PDFs (no LibreOffice there): make them here, so every form gets a PDF CV.
+        subprocess.run([PY, str(ROOT / "scripts" / "to_pdf.py"), "--all"], cwd=ROOT, capture_output=True, timeout=600)
         r = subprocess.run([PY, str(ROOT / "scripts" / "build_kits.py")], cwd=ROOT, capture_output=True, text=True, timeout=120)
         return {"ok": r.returncode == 0, "error": (r.stderr or "")[-200:]}
     job = msg.get("id", "")
@@ -79,7 +81,8 @@ def handle(msg):
     today = date.today().isoformat()
     if action == "skip":
         reason = re.sub(r"\s+", " ", str(msg.get("reason") or "skipped from the add-on"))[:200]
-        tracker("update", job, "--status", "skipped", "--set", "skip_reason=user", "--note", f"Skipped in Rolewise Fill: {reason}")
+        why = "posting-closed" if reason.startswith("posting-closed") else "user"
+        tracker("update", job, "--status", "skipped", "--set", f"skip_reason={why}", "--note", f"Skipped in Rolewise Fill: {reason}")
         save_and_sync(f"Skip {job} (Rolewise Fill)")
     elif action == "applied":
         tracker("update", job, "--status", "applied", "--set", f"date_applied={today}", "--note", "Submitted with Rolewise Fill")

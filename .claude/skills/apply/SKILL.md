@@ -51,5 +51,44 @@ When running in a cloud session (claude.ai/code, e.g. started from a phone):
    `ready` with note "cloud blocked by CAPTCHA — laptop/phone". Same for any error page after submit.
 6. Submit only under the normal rule (nothing open). Capture the confirmation text, update the tracker, commit + push.
 
+## Workday (and other login portals: SuccessFactors, Taleo, iCIMS)
+Rolewise Fill handles Workday itself: opened from its queue (or **Fill all pages**), it clicks Apply Manually, fills
+the email on the sign-in page, fills every page, clicks **Save and Continue**, and stops on **Review**. The user only
+signs in (or picks Chrome's suggested password for a new account) and clicks Submit. On a laptop run without the
+add-on, Rolewise does the same in Chrome (Claude in Chrome):
+1. Get the real form URL: the tracker's `apply_url`, else open the posting and click its external Apply link (one LinkedIn
+   page view, never Easy Apply). Save it: `tracker.py update <id> --set apply_url=<url without ?share_id…>`.
+2. **Account.** Already signed in (email shown top right) → go on. Otherwise use "Sign in with Google" if offered.
+   If the portal only offers email + password: open *Create Account* and fill the email; the user sets the password
+   (Chrome's "Use suggested password" = one click, saved in their Google Password Manager). Rolewise never types or
+   stores a password. Then open the verification email via Gmail and click its link. Log the account in the tracker
+   note ("Workday account created at <tenant>"). Each employer's Workday is a separate account.
+3. Fill every step, then **Save and Continue**, until the **Review** page:
+   - My Information: often pre-filled from the account; check source, "worked here before", name, phone (local
+     number; the country code is its own field), state/emirate/city.
+   - My Experience: one entry per role from the job's `cv.yaml` (else `master-cv.yaml`): title, company,
+     "City, Country" (`answers.yaml` city_country), dates, role description = that role's bullets as "• " lines with
+     the ** markers removed. Education: EVERY entry in `answers.yaml` education_entries, even if the form says
+     "highest level"; a school that isn't in the form's list → "Other" (as the form itself says). Certifications from
+     `answers.yaml` certifications: most Workday tenants only offer a fixed issuer list; if the issuer (or "Other")
+     isn't there, delete the empty entry and leave it to the CV, never pick a near match. Languages from `answers.yaml`
+     languages at the level given ("highest" = the top option, "fluent" ticked). CV: the PDF (delete any .docx
+     already attached first). Cover letter field → the cover letter PDF.
+     **Search-list trap:** typing + Enter auto-selects the result when exactly one comes back, even a wrong one (a
+     similarly named university, an unrelated certificate). After every search, read the field's selected chip; if
+     it's wrong, remove it (click the chip, Delete) or delete the whole entry and add it again.
+   - Application questions / disclosures → `answers.yaml` (work authorisation, sponsorship, diversity, SMS/WhatsApp
+     opt-in, `ai_screening_opt_in`); privacy acknowledgement = tick.
+   - Anything open (see top of this skill) → stop on that step and ask, as usual.
+   Mechanics that work on Workday: fields have stable ids like `workExperience-4--jobTitle`; set text with the native
+   value setter + input/change/blur events; dates (MM/YYYY): focus the month box and type `012026`; dropdowns are
+   `button[aria-haspopup=listbox]` → click, then dispatch mousedown/mouseup/click on the `[role=option]`; search lists
+   (school, field of study) → type, Enter, click the option; "Add Another" adds an entry.
+4. At **Review**: read the whole page back, then stop. Leave the tab open on Review and
+   `tracker.py update <id> --status ready --note "filled to Review on <portal>; waiting for the user's Submit click"`.
+   Report it in the briefing as "one click left". After the user submits, the job is marked applied (Rolewise Fill
+   toast / Inbox Applied / next track run).
+   A posting that says "The page you are looking for doesn't exist" has closed → skip it as `posting-closed`.
+
 ## Failure handling
 CAPTCHA, broken form, assessment links, or anything odd → stop that one, tell the user, continue with others. Never retry submit blindly (risk of duplicate applications). Respect the daily cap (~15 applications).

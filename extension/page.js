@@ -19,7 +19,7 @@
   }
 
   const flat = opts => (opts || []).flatMap(o => (o && o.options ? o.options : [o]));
-  // Prefix match first; substring match only for longer terms (so "MDI" can't hit an unrelated school name).
+  // Prefix match first; substring match only for longer terms (so a short acronym can't hit an unrelated school name).
 
   // "*band:N*" picks the range option that contains N ("90 000 EUR - 100 000 EUR", "less than 40k", "more than 220 000");
   // "*any*" picks the first real option (only used as the last fallback for low-stakes questions).

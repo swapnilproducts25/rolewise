@@ -28,14 +28,18 @@ def first(pattern, page):
     return text(m.group(1)) if m else ""
 
 
+FLAVOR = r'topcard__flavor">(.*?)</span>'
+FLAVOR_B = r'topcard__flavor topcard__flavor--bullet">(.*?)</span>'
+
+
 def fetch(job_id):
     req = urllib.request.Request(URL.format(job_id), headers={"User-Agent": UA})
     page = urllib.request.urlopen(req, timeout=30).read().decode("utf-8", "replace")
     criteria = re.findall(r'description__job-criteria-subheader">(.*?)</h3>.*?criteria-text[^>]*>(.*?)</span>', page, re.S)
     return "\n".join([
         f"# {first(r'top-card-layout__title[^>]*>(.*?)</h2>', page)}",
-        f"Company: {first(r'topcard__org-name-link[^>]*>(.*?)</a>', page) or first(r'topcard__flavor\">(.*?)</span>', page)}",
-        f"Location: {first(r'topcard__flavor topcard__flavor--bullet\">(.*?)</span>', page)}",
+        f"Company: {first(r'topcard__org-name-link[^>]*>(.*?)</a>', page) or first(FLAVOR, page)}",
+        f"Location: {first(FLAVOR_B, page)}",
         f"Posted: {first(r'posted-time-ago__text[^>]*>(.*?)</span>', page)}",
         f"Applicants: {first(r'num-applicants__caption[^>]*>(.*?)</(?:span|figcaption)>', page)}",
         f"URL: https://www.linkedin.com/jobs/view/{job_id}",

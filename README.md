@@ -27,8 +27,10 @@ Free and open source. Your data stays in your own accounts.
 - **Coaches you** each week: what's working and what to change.
 - Optional **Rolewise Fill** Chrome add-on (laptop): a queue of ready jobs; one click opens the form and fills it
   (CV, cover letter, answers, salary band, dropdowns). Works on Greenhouse, Lever, Ashby, Workable, SmartRecruiters,
-  Homerun, LinkedIn Easy Apply (step by step, you click Next) and Workday, and on any other form with
-  **Fill this page** (Alt+Shift+F). You check the form and click Submit. Skip, Pause and interview Debrief notes are
+  Homerun, LinkedIn Easy Apply (step by step, you click Next) and **Workday**: there it fills every page (your work
+  history, each degree, languages, the questions) and stops on Review; you only sign in and click Submit. Any other
+  form works with **Fill this page** (Alt+Shift+F). You check the form and click Submit. Queued jobs open the
+  company's own application form, not the LinkedIn post, and a posting that has closed leaves your queue by itself. Skip, Pause and interview Debrief notes are
   one click in the add-on. Setup needs Chrome, Python and Git on your laptop and one command, `python scripts/setup_fill.py` (about 10 minutes).
   Optional: your own Anthropic API key in the add-on's settings adds **✨ Draft / Redraft / Shorter** under unusual
   questions, written into the field from your CV and the job description (a fraction of a cent per answer).
@@ -46,7 +48,8 @@ Click **Use this template** → **Create a new repository**, choose **Private**,
 - It never submits an application, sends an email or messages anyone without your yes. The one exception is your
   own daily briefing.
 - It never invents experience: every CV line and answer traces back to your own CV and answers.
-- It never enters passwords, codes or payment details.
+- It never enters passwords, codes or payment details. Where a job site needs an account, it fills the sign-up
+  form and you set the password (Chrome can suggest and save one).
 - It doesn't automate LinkedIn: no scraping, no automated messages or connection requests.
 - It flags likely scams (fees, crypto, ID requests before an interview, chat-app-only "recruiters").
 

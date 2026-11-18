@@ -42,6 +42,8 @@ Round A, about them (one AskUserQuestion call after the confirm card):
 4. Right to work: options built from their citizenship/location, e.g. "UK only", "UK + EU", "Need sponsorship
    everywhere except <country>" (multi-select of regions works well).
 5. Notice period: "Available now", "2 weeks", "1 month", "3 months".
+5b. Languages (multi-select, CV languages first, plus English): written to `answers.yaml` `languages` with level
+   "highest" unless they say otherwise. Also fill `city_country` from the CV's work locations (no question needed).
 Round B, about the search (one call):
 6. Roles: 3–4 title sets suggested from the CV as options (multi-select), e.g. "Senior Data Analyst",
    "Analytics Manager"; "Other" for their own.

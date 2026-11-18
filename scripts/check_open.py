@@ -3,7 +3,8 @@
 Usage: .venv/Scripts/python scripts/check_open.py                 # every shortlisted / preparing / ready job
        .venv/Scripts/python scripts/check_open.py <job id> ...    # just these
 Greenhouse and Lever: their public job APIs (404 = closed). LinkedIn: the public job page ("No longer accepting
-applications" or 404 = closed). Others are left alone. Closed jobs become `skipped` (skip_reason posting-closed).
+applications" or 404 = closed). Others (Workday etc.) are left alone here: Rolewise Fill
+spots a closed page when a queued job is opened, and laptop runs check them in Chrome. Closed jobs become `skipped` (skip_reason posting-closed).
 Polite: one request per job, 1.5 s apart.
 """
 import json
@@ -29,7 +30,7 @@ def status_of(url):
         probe = f"https://api.lever.co/v0/postings/{m.group(1)}/{m.group(2)}"
     elif m := re.search(r"linkedin\.com/(?:comm/)?jobs/view/(\d+)", url or ""):
         probe = f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{m.group(1)}"
-        closed_text = re.compile(r"no longer accepting applications|closed-job|this job is no longer available", re.I)
+        closed_text = re.compile(r"no longer accepting applications|not currently accepting applications|closed-job|this job is no longer available", re.I)
     if not probe:
         return "unknown"
     try:
@@ -49,11 +50,9 @@ def main(ids):
     closed = 0
     for j in todo:
         urls = [u for u in (j.get("apply_url"), j.get("url")) if u]
-        st = "unknown"
-        for u in urls:
-            st = status_of(u)
-            if st != "unknown":
-                break
+        # Closed on any link wins: a company form can close while the LinkedIn post still shows (Visa, 2026-11-18).
+        found = [status_of(u) for u in urls]
+        st = "closed" if "closed" in found else "open" if "open" in found else "unknown"
         if st == "closed":
             closed += 1
             subprocess.run([sys.executable, str(ROOT / "scripts" / "tracker.py"), "update", j["id"], "--status", "skipped",

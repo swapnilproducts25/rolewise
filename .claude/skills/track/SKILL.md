@@ -12,7 +12,7 @@ description: Check Gmail (and LinkedIn messages) for application updates — con
 - Known ATS senders: greenhouse.io, lever.co, ashbyhq.com, myworkday.com, smartrecruiters.com, linkedin.com (jobs-noreply).
 **LinkedIn, via Gmail first (no browsing needed):**
 - Recruiter InMails and replies: `newer_than:3d from:(inmail-hit-reply@linkedin.com OR hit-reply@linkedin.com)`. Each thread = one "Replies waiting on you" card (who, which role, what they asked: e.g. a call time or a Teams invite) with a **Draft reply** button. Add the role to the tracker (`--source recruiter`) if it's a real opening; scam checks per CLAUDE.md rule 6.
-- Applications they sent themselves on LinkedIn: `newer_than:3d from:jobs-noreply@linkedin.com "your application was sent to"` → make sure the tracker has that job as `applied` (add it if missing, `--source linkedin`, date = email date).
+- Applications they sent themselves on LinkedIn: `newer_than:7d from:jobs-noreply@linkedin.com "your application was sent to"` → make sure the tracker has that job as `applied` (add it if missing, `--source linkedin`, date = email date). Match on the LinkedIn job id in the email's job link (`/jobs/view/<id>`) against the tracker's `url`, not on the company name: one company often has several near-identical postings (Jobgether had three; 2026-11-16's was missed). Read the full message (get_thread) to get the link; only when there is no link, match company + exact title, and if several jobs still fit, ask.
 - Ignore LinkedIn notifications, groups, courses and "people viewed your profile" mail.
 **LinkedIn site** — only if Gmail lacks the detail: messaging inbox and "My Jobs → Applied", at human pace.
 

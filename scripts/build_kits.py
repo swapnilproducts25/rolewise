@@ -103,7 +103,9 @@ RULES = [
     [r"adjustment|accommodat|if a (video|phone) (or (video|phone) )?interview is not", "adjustments"],
     [r"what interests you|why (do you want|are you interested|would you like)|why .{0,40}(join|apply|this role|\bus\b)|motivat|excites? you|excited about|your interest (in )?working|interest in (this|the) (role|position|company)", "why"],
     [r"whatsapp", "whatsapp"],
-    [r"\bsms\b|text messages", None],
+    [r"\bsms\b|text messages", "sms"],
+    [r"verification of your identi|verify your identity|proof of identity", "id_verification"],
+    [r"automated tools|\bai\b.{0,40}(review|process|screen)|artificial intelligence", "ai_review"],
     [r"e-?mail", "email"],
     [r"phone|mobile", "phone"],
     [r"linkedin", "linkedin"],
@@ -237,7 +239,10 @@ def base_answers(profile, job):
         "heard": [std.get("how_did_you_hear", "Job Board"), "Job Board", "Company website", "Careers", "LinkedIn",
                   "Other", "*any*"],   # low-stakes: if none fits, the first real option
         "future_emails": ["Yes"],
-        "whatsapp": [std.get("whatsapp_opt_in", "Yes")], "remote": [std.get("remote_work_preference", "No")],
+        "whatsapp": [std.get("whatsapp_opt_in", "Yes")],
+        "sms": [std.get("whatsapp_opt_in", "Yes"), "Opt-In", "Opt In", "I agree"],
+        "id_verification": ["Yes"],
+        "ai_review": ["Opt-In", "Opt In", "Yes"] if std.get("ai_screening_opt_in", "Yes") == "Yes" else ["Opt-Out", "Opt Out", "No"], "remote": [std.get("remote_work_preference", "No")],
         "recording_consent": ["Yes", "I consent", "I agree", "I acknowledge"], "location_choice": [std.get("location_dropdown_no_uae_option", "EMEA - Other"), "Other"],
         "export_sanctioned": [exp.get("sanctioned_country_citizen_or_resident", "No")],
         "export_additional": ["N/A"], "export_first": ["N/A"],
@@ -312,6 +317,59 @@ def cv_context(folder, limit=2500):
     return out[:limit]
 
 
+MONTHS = {m: i for i, m in enumerate(["january", "february", "march", "april", "may", "june", "july", "august",
+                                       "september", "october", "november", "december"], 1)}
+
+
+def month_year(text):
+    """'January 2026' -> '01/2026'; 'Present' / unknown -> ''."""
+    m = re.match(r"\s*([A-Za-z]+)\s+(\d{4})", text or "")
+    if not m or m.group(1).lower() not in MONTHS:
+        return ""
+    return f"{MONTHS[m.group(1).lower()]:02d}/{m.group(2)}"
+
+
+DEGREE_LEVEL = [(r"\b(ph\.?d|doctor)", "Doctor"), (r"\b(mba|master(?:'?s)?\b|m\.?sc|m\.?a\b|m\.?tech|m\.?eng|ms\b)", "Master"),
+                (r"\b(bachelor|b\.?sc|b\.?a\b|b\.?tech|b\.?eng|b\.?com|be\b|bs\b)", "Bachelor"), (r"associate", "Associate")]
+
+
+def derived_education(e):
+    """A master-cv education line -> a form entry, when answers.yaml has no education_entries: the school, then
+    'Other'; the degree as written, then its level ('Master', 'Bachelor'); the field after the comma."""
+    title, school = str(e.get("title") or ""), str(e.get("institution") or "").split(",")[0].strip()
+    degree, _, field = title.partition(",")
+    years = re.findall(r"\d{4}", str(e.get("dates") or ""))
+    level = next((name for rx, name in DEGREE_LEVEL if re.search(rx, title, re.I)), None)
+    if not school or not level:
+        return None
+    return {"school": [school, "Other"], "degree": [degree.strip()] + (["Master of Business Administration"] if re.search(r"\bmba\b", title, re.I) else []) + [level],
+            "field": [field.strip()] if field.strip() else (["Business Administration"] if re.search(r"\bmba\b", title, re.I) else []),
+            "from": years[0] if years else "", "to": years[-1] if years else ""}
+
+
+def history(folder, profile):
+    """Work history, education, certifications and languages for multi-step forms (Workday's My Experience page):
+    the job's tailored CV (or the master) plus the structured blocks in answers.yaml. Facts only, nothing added."""
+    src = folder / "cv.yaml" if (folder / "cv.yaml").exists() else ROOT / "profile" / "master-cv.yaml"
+    cv = yaml.safe_load(src.read_text(encoding="utf-8")) or {}
+    plain = lambda s: re.sub(r"\*\*", "", str(s or "")).strip()
+    cities = profile.get("city_country") or {}
+    jobs = []
+    for role in cv.get("experience") or []:
+        start, _, end = str(role.get("dates", "")).partition(" - ")
+        city = str(role.get("location") or "").strip()
+        jobs.append({"title": plain(role.get("title")), "company": plain(role.get("company")),
+                     "location": f"{city}, {cities[city]}" if city in cities else city,
+                     "from": month_year(start), "to": month_year(end), "current": not month_year(end),
+                     "description": "\n".join("• " + plain(b.get("text") if isinstance(b, dict) else b)
+                                              for b in role.get("bullets") or []
+                                              if not (isinstance(b, dict) and b.get("hide")))})
+    education = profile.get("education_entries") or [derived_education(e) for e in cv.get("education") or []
+                                                     if not re.search(r"certif|course|programme|program\b", str(e.get("title", "")), re.I)]
+    return {"experience": jobs, "education": [e for e in education if e],
+            "certifications": profile.get("certifications") or [], "languages": profile.get("languages") or []}
+
+
 def debriefed(job):
     """Notes or a debrief saved since the last interview round (or in the last 10 days when the round date is unknown)."""
     folder = ROOT / "applications" / job["id"]
@@ -356,7 +414,8 @@ def build(job, profile):
     kit = {"id": job["id"], "company": job["company"], "title": job["title"], "status": job["status"],
            "fit": job.get("fit_score"),
            "urls": form_urls(job),
-           "files": files, "answers": answers, "questions": questions, "context": cv_context(folder), "jd": jd_excerpt(folder)}
+           "files": files, "answers": answers, "questions": questions, "context": cv_context(folder), "jd": jd_excerpt(folder),
+           "history": history(folder, profile)}
     (KITS / f"{job['id']}.json").write_text(json.dumps(kit, indent=2, ensure_ascii=False), encoding="utf-8")
     return kit
 

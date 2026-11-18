@@ -37,6 +37,16 @@ standard_form_answers:        # sensible defaults; change any with /profile
   standard_consents: "Yes"             # privacy, data retention, interview recording
   remote_work_preference: "No"
   whatsapp_opt_in: "Yes"
+  ai_screening_opt_in: "Yes"           # "We may use AI tools to review your application": Opt-In (No = opt out)
+
+# Language sections (Workday etc.): every language you'd put on a form. level "highest" = the top option on offer.
+languages: []                    # e.g. [{language: English, level: highest}, {language: Spanish, level: highest}]
+
+# Multi-step forms (Workday) ask for each degree separately. Rolewise builds this from the education in your CV
+# (school, then "Other" if the form's list lacks it; degree; field; years). Fill it in only to override that.
+education_entries: []            # e.g. [{school: ["University of X", "Other"], degree: ["MSc", "Master"], field: ["Data Science"], from: 2015, to: 2016}]
+certifications: []               # e.g. [{name: "PMP", issuer: ["PMI"], year: 2022}]; left to the CV if the form's list lacks the issuer
+city_country: {}                 # CV locations -> "City, Country" on forms, e.g. {London: United Kingdom, Pune: India}
 
 citizenship:
   export_control:

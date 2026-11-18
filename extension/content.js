@@ -12,7 +12,9 @@
   // Multi-step sites (LinkedIn Easy Apply, Workday): the user opens each step; Rolewise fills only the step on
   // screen when asked, never on page load, and never clicks Next, Review or Submit.
   const LINKEDIN = location.hostname.endsWith("linkedin.com");
-  const STEP_MODE = LINKEDIN || /myworkday(jobs)?\.com$/.test(location.hostname);
+  // Workday has its own mode (wdStart below): Rolewise fills every page and clicks Save and Continue up to Review.
+  const WORKDAY = /myworkday(jobs)?\.com$/.test(location.hostname);
+  const STEP_MODE = LINKEDIN;
   const linkedinModal = () => [...document.querySelectorAll(
     ".jobs-easy-apply-modal, .jobs-easy-apply-content, [data-test-modal-id='easy-apply-modal'], div[role=dialog]")]
     .find(d => d.offsetParent !== null && d.querySelector("input, select, textarea")
@@ -332,7 +334,8 @@
     const answered = new Set();
     const controls = deepAll(ROOT, "input, textarea, select")
       .filter(el => !["hidden", "file", "submit", "button", "search"].includes(el.type) && !el.disabled
-        && !(el.id || "").startsWith("g-recaptcha") && el.offsetParent !== null);
+        && !(el.id || "").startsWith("g-recaptcha") && el.offsetParent !== null
+        && !(WORKDAY && (el.placeholder === "Search" || /dateSection/.test(el.id))));
 
     for (const el of controls) {
       const label = labelFor(el);
@@ -499,8 +502,14 @@
     return kitFile("kits/index.json");
   }
   const token = u => (u || "").toLowerCase().replace(/[?#].*$/, "").replace(/\/+$/, "");
+  // Workday URLs change on the way (…/apply, /en-US/…/apply/applyManually): match on the requisition id ("_REF089460W").
+  const wdReq = u => ((u || "").match(/\/job\/[^?#]*_([A-Za-z0-9-]{4,})(?:\/|$|\?|#)/) || [])[1];
   function matchKit(index) {
     const here = location.href.toLowerCase();
+    if (WORKDAY && wdReq(location.href)) {
+      const hit = index.find(k => k.urls.some(u => /myworkday/.test(u) && wdReq(u) === wdReq(location.href)));
+      if (hit) return hit;
+    }
     const jid = (here.match(/(?:jobs\/|token=|gh_jid=|currentjobid=|view\/)(\d{5,})/) || [])[1];
     return index.find(k => k.urls.some(u => {
       const t = token(u);
@@ -511,9 +520,10 @@
 
   // ---------- UI ----------
   // Only on real application forms, never on confirmation/thank-you pages.
-  const DONE_TEXT = /thank you for (applying|your application)|application (has been|was) (successfully )?(received|submitted|sent)|successfully (submitted|applied)|your application was sent|and\.\.\.sent|we('| ha)ve received your application/i;
+  const DONE_TEXT = /thank you for (applying|your application)|application (has been|was) (successfully )?(received|submitted|sent)|successfully (submitted|applied)|your application was sent|and\.\.\.sent|we('| ha)ve received your application|application submitted|you('ve| have) (successfully )?applied/i;
   function isApplicationPage() {
     if (LINKEDIN) return !!linkedinModal();
+    if (WORKDAY) return /\/apply\b/.test(location.pathname) && !DONE_TEXT.test((document.body && document.body.innerText || "").slice(0, 4000));
     if (/confirmation|thank-?you|submitted/i.test(location.pathname + location.search)) return false;
     if (DONE_TEXT.test((document.body && document.body.innerText || "").slice(0, 4000))) return false;
     return deepAll(document, FORM_SIGNS).length > 0;
@@ -530,7 +540,7 @@
     const formShown = deepAll(document, FORM_SIGNS)
       .some(e => e.offsetParent !== null);
     const said = DONE_TEXT.test(text.slice(0, 4000)) || (!LINKEDIN && !formShown && DONE_TEXT.test(text));
-    const gone = !LINKEDIN && !formShown && Date.now() - clicked < 10 * 60000;
+    const gone = !LINKEDIN && !WORKDAY && !formShown && Date.now() - clicked < 10 * 60000;
     if (!said && !gone) return;
     try { sessionStorage.removeItem("rolewise:submitClicked"); } catch (e) {}
     try { sessionStorage.removeItem("rolewise:lastKit"); } catch (e) {}
@@ -584,7 +594,7 @@
   const setTab = (text, colour) => { tab.textContent = text; tab.style.background = colour || "#1d3461"; };
   const refreshState = () => {
     if (busy) return;
-    btn.textContent = STEP_MODE ? "Fill this step" : "Fill with Rolewise";
+    btn.textContent = STEP_MODE ? "Fill this step" : WORKDAY ? (wdActive() ? "Continue filling" : "Fill all pages") : "Fill with Rolewise";
     btn.style.display = alreadyFilled() ? "none" : "block";   // filled: the job now is to review and submit
     if (alreadyFilled()) body.innerHTML ||= `Filled. Review the form and click its Submit button.${again}`;
   };
@@ -616,6 +626,7 @@
       markSubmitted();
       // Opened from the briefing's "Open & fill" button (#rolewise-fill): fill once, automatically.
       if (want && !STEP_MODE && !autoDone && /(rolewise|jobify)-fill/.test(location.hash) && !alreadyFilled()) { autoDone = true; btn.click(); }
+      if (WORKDAY) wdTick();
     };
     // Note when you click the form's own Submit button on a page Rolewise filled.
     document.addEventListener("click", e => {
@@ -698,6 +709,7 @@
   }
 
   async function run(kitId) {
+    if (WORKDAY) return wdStart(kitId);
     if (LINKEDIN && await linkedinCapReached(kitId)) {
       show("You've reached today's 15 LinkedIn applications. Rolewise keeps this cap to protect your account; carry on tomorrow.");
       return;
@@ -760,6 +772,333 @@
     // Stay on screen until you submit, docked at the top right, clear of the form's Submit button at the bottom.
     ui.style.top = "12px";
     panel.style.maxHeight = "45vh";
+  }
+
+  // ---------- Workday ----------
+  // Opened from the Rolewise menu (or "Fill all pages"): Rolewise fills each page, clicks Save and Continue, and stops
+  // on Review for you to click Submit. It never types a password and never clicks Submit. It stops early on anything
+  // it can't answer (highlighted) or on Workday errors; fix those, then click "Continue filling".
+  const WD_KEY = "rolewise:wd";
+  const ss = { get: k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
+               set: (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) {} },
+               del: k => { try { sessionStorage.removeItem(k); } catch (e) {} } };
+  const wdActive = () => !!ss.get(WD_KEY);
+  const vis = el => el && el.offsetParent !== null;
+  const byText = (sel, re) => [...document.querySelectorAll(sel)].find(b => vis(b) && re.test(norm(b.innerText || b.value || "")));
+  const wdStepName = () => {
+    const m = ((document.querySelector("main") || document.body).innerText || "").match(/current step \d+ of \d+\s*\n\s*([^\n]+)/i);
+    return m ? low(m[1]) : "";
+  };
+  const wdOptions = () => [...document.querySelectorAll("[role=option]")].filter(vis)
+    .map(o => ({ el: o, text: norm(o.innerText) })).filter(o => o.text && !/^select one$/i.test(o.text));
+  const KEYCODE = { Enter: 13, Escape: 27, Backspace: 8, Delete: 46 };
+  const press = (el, key) => ["keydown", "keyup"].forEach(t => el.dispatchEvent(new KeyboardEvent(t,
+    { key, code: key, keyCode: KEYCODE[key], which: KEYCODE[key], bubbles: true })));
+  const tap = el => ["mousedown", "mouseup", "click"].forEach(t => el.dispatchEvent(new MouseEvent(t, { bubbles: true })));
+  function typeIn(el, v) {   // text into a React-controlled box without blurring it (search boxes, date parts)
+    el.focus();
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, v);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  // A "Select One" dropdown (button with a listbox): open it and click the wanted option.
+  async function wdChoose(btn, wanted, highest = false) {
+    btn.scrollIntoView({ block: "center" });
+    btn.click();
+    await sleep(700);
+    const opts = wdOptions();
+    const hit = highest ? (opts.find(o => /native|bilingual|expert|mother/i.test(o.text)) || opts[opts.length - 1])
+      : pick(opts, wanted);
+    if (!hit) { btn.click(); await sleep(300); return false; }
+    tap(hit.el);
+    await sleep(600);
+    return !/^select one$/i.test(norm(btn.innerText));
+  }
+  // Search lists ("How did you hear", school, field of study): Workday picks the result by itself when the search
+  // finds exactly one, even a wrong one, so every pick is checked and a wrong one removed.
+  const promptBox = el => { let n = el; for (let i = 0; i < 7 && n; i++, n = n.parentElement) if (n.querySelector("[role=listbox]")) return n; return el.parentElement; };
+  const chips = el => [...promptBox(el).querySelectorAll("[role=listbox] [role=option]")]
+    .map(o => norm(o.innerText).replace(/,? press delete.*$/i, "")).filter(Boolean);
+  async function unchip(el) {
+    for (const o of promptBox(el).querySelectorAll("[role=listbox] [role=option]")) { o.focus(); press(o, "Delete"); press(o, "Backspace"); }
+    typeIn(el, ""); press(el, "Backspace");
+    await sleep(500);
+    return !chips(el).length;
+  }
+  const fits = (got, w) => got.some(c => matchOne([{ text: c }], w));
+  async function wdPrompt(el, wanted) {
+    if (chips(el).length) return true;
+    for (const w of asList(wanted).filter(w => !w.startsWith("*"))) {
+      typeIn(el, w); press(el, "Enter");
+      await sleep(1800);
+      if (chips(el).length) {
+        if (fits(chips(el), w)) return true;
+        if (!(await unchip(el))) return false;   // a wrong auto-pick that won't go: left for you (flagged)
+        continue;
+      }
+      for (let depth = 0; depth < 2; depth++) {   // some lists have two levels (a category, then the item)
+        const hit = pick(wdOptions(), [w]);
+        if (!hit) break;
+        tap(hit.el.querySelector("[data-automation-id=promptOption], [data-automation-id=checkboxPanel]") || hit.el);
+        await sleep(900);
+        if (chips(el).length) break;
+      }
+      if (fits(chips(el), w)) { press(el, "Escape"); return true; }
+      if (chips(el).length && !(await unchip(el))) return false;
+    }
+    typeIn(el, ""); press(el, "Escape");
+    return false;
+  }
+  async function wdDate(prefix, value) {   // "01/2026" (month/year) or 2012 (year only)
+    const s = String(value || "");
+    if (!s) return true;
+    const [m, y] = s.includes("/") ? s.split("/") : ["", s];
+    const mEl = document.getElementById(`${prefix}-dateSectionMonth-input`), yEl = document.getElementById(`${prefix}-dateSectionYear-input`);
+    for (const [el, v] of [[mEl, m && String(+m)], [yEl, y]]) {
+      if (!el || !v) continue;
+      typeIn(el, v);
+      el.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
+      await sleep(150);
+    }
+    return (!mEl || !m || +mEl.value === +m) && (!yEl || +yEl.value === +y);
+  }
+  const sectionOf = name => [...document.querySelectorAll("main [role=group]")]
+    .find(g => new RegExp(`^${name}`, "i").test(g.getAttribute("aria-labelledby") || ""));
+  const entries = idEnd => [...document.querySelectorAll(`[id$="${idEnd}"]`)].map(e => e.id.slice(0, -idEnd.length));
+  async function wdAdd(name, idEnd) {   // "Add" / "Add Another" in a section; returns the new entry's id prefix
+    const sec = sectionOf(name);
+    const b = sec && [...sec.querySelectorAll("button")].find(b => /^add( another)?$/i.test(norm(b.innerText)));
+    if (!b) return null;
+    const before = new Set(entries(idEnd));
+    b.click();
+    for (let i = 0; i < 10; i++) {
+      await sleep(400);
+      const neu = entries(idEnd).find(p => !before.has(p));
+      if (neu) return neu;
+    }
+    return null;
+  }
+  const byId = id => document.getElementById(id);
+  const setIfEmpty = (id, v) => { const el = byId(id); if (el && !el.value && v) setNative(el, v); };
+
+  async function wdExperience(kit, report) {
+    const h = kit.history || {};
+    // Work history: one entry per role. A page that already has entries (a saved draft) is left as it is.
+    let jobs = entries("--jobTitle");
+    if (!jobs.some(p => byId(p + "jobTitle").value)) {
+      for (const [i, j] of (h.experience || []).entries()) {
+        const p = jobs[i] || await wdAdd("Work-Experience", "--jobTitle");
+        if (!p) { report.missing.push(`Work experience: ${j.company}`); continue; }
+        jobs = entries("--jobTitle");
+        setIfEmpty(p + "jobTitle", j.title); setIfEmpty(p + "companyName", j.company);
+        setIfEmpty(p + "location", j.location); setIfEmpty(p + "roleDescription", j.description);
+        const cur = byId(p + "currentlyWorkHere");
+        if (cur && j.current && !cur.checked) cur.click();
+        const ok = (await wdDate(p + "startDate", j.from)) && (j.current || await wdDate(p + "endDate", j.to));
+        (ok ? report.filled : report.missing).push(`${j.title}, ${j.company}${ok ? "" : ": dates"}`);
+      }
+    }
+    // Education: every degree (answers.yaml education_entries), whatever "highest level" says.
+    let eds = entries("--school");
+    if (!eds.some(p => chips(byId(p + "school")).length)) {
+      for (const [i, e] of (h.education || []).entries()) {
+        const p = eds[i] || await wdAdd("Education", "--school");
+        if (!p) { report.missing.push("Education"); continue; }
+        eds = entries("--school");
+        const ok = [await wdPrompt(byId(p + "school"), e.school)];
+        if (byId(p + "degree")) ok.push(await wdChoose(byId(p + "degree"), e.degree));
+        if (byId(p + "fieldOfStudy")) ok.push(await wdPrompt(byId(p + "fieldOfStudy"), e.field));
+        await wdDate(p + "firstYearAttended", e.from);
+        await wdDate(p + "lastYearAttended", e.to);
+        (ok.every(Boolean) ? report.filled : report.missing).push(`Education: ${asList(e.degree)[0]}`);
+      }
+    }
+    // Languages: from answers.yaml, "highest" = the top level on offer.
+    let langs = entries("--language");
+    if (sectionOf("Languages") && !langs.some(p => !/select one/i.test(norm(byId(p + "language").innerText)))) {
+      for (const [i, l] of (h.languages || []).entries()) {
+        const p = langs[i] || await wdAdd("Languages", "--language");
+        if (!p) break;
+        langs = entries("--language");
+        const ok = await wdChoose(byId(p + "language"), [l.language]);
+        const fl = byId(p + "native");
+        if (fl && !fl.checked) fl.click();
+        for (const b of document.querySelectorAll(`button[id^="${p}"][aria-haspopup=listbox]`))
+          if (b.id !== p + "language" && /select one/i.test(norm(b.innerText))) await wdChoose(b, [], true);
+        (ok ? report.filled : report.missing).push(`Language: ${l.language}`);
+      }
+    }
+    // Certifications stay on the CV: Workday's fixed lists rarely have them, and a near match would be untrue.
+    // CV: the PDF. A file left from an earlier try (e.g. the Word version) is removed first.
+    const sec = sectionOf("Resume");
+    const name = kit.files.cv.split("/").pop();
+    if (sec && !(sec.innerText || "").includes(name)) {
+      for (const b of [...sec.querySelectorAll("button")].filter(b => /^delete .+\.\w{3,4}$/i.test(b.getAttribute("aria-label") || ""))) { b.click(); await sleep(800); }
+      const input = sec.querySelector("input[type=file]");
+      if (input) { await putFile(input, kit, "cv"); for (let i = 0; i < 20 && !(sec.innerText || "").includes(name); i++) await sleep(500); }
+      ((sec.innerText || "").includes(name) ? report.filled : report.missing).push(`CV upload: ${name}`);
+    }
+  }
+
+  // Every page: dropdowns, search lists, yes/no radios, text boxes and the standard consent boxes, from the kit.
+  const localPhone = kit => {
+    const raw = String(kit.answers.phone || "").replace(/\s/g, ""), dial = DIAL.find(([c]) => raw.startsWith(c));
+    return dial ? raw.slice(dial[0].length) : raw;
+  };
+  function wdLookup(label, kit) {   // Workday's own fields first, then the usual answers
+    const L = low(label);
+    if (/^country$|country\/region/.test(L)) return kit.answers.residence_country;
+    if (/country phone code/.test(L)) return kit.answers.residence_country;
+    if (/device type/.test(L)) return ["Mobile", "Mobile Phone", "Cell"];
+    if (/^emirate|^state\b|province/.test(L)) return asList(kit.answers.city);
+    return lookup(label, kit);
+  }
+  async function wdGeneric(kit, report) {
+    const main = document.querySelector("main") || document;
+    const ph = byId("phoneNumber--phoneNumber");
+    if (ph && !ph.value && kit.answers.phone) { setNative(ph, localPhone(kit)); report.filled.push("Phone"); }
+    for (const b of [...main.querySelectorAll("button[aria-haspopup=listbox]")].filter(vis)) {
+      if (!/^select one$/i.test(norm(b.innerText)) || /^(education|language|workExperience|certification)-/.test(b.id)) continue;
+      const label = labelFor(b).replace(/select one|required/gi, "").trim();
+      const v = wdLookup(label, kit);
+      if (v === IGNORE) continue;
+      if (v === undefined) { report.missing.push(label); continue; }
+      (await wdChoose(b, v) ? report.filled : report.missing).push(label);
+    }
+    for (const el of [...main.querySelectorAll("input[placeholder=Search]")].filter(vis)) {
+      if (/^(education|certification|language)-/.test(el.id) || /skill/i.test(labelFor(el)) || chips(el).length) continue;
+      const label = labelFor(el);
+      const v = wdLookup(label, kit);
+      const required = el.getAttribute("aria-required") === "true" || /\*/.test((el.labels && el.labels[0] && el.labels[0].innerText) || "");
+      if (v === undefined || v === IGNORE) { if (required) report.missing.push(label); continue; }
+      (await wdPrompt(el, v) ? report.filled : report.missing).push(label);
+    }
+    const saved = ROOT;
+    ROOT = main;
+    try {
+      const r = await fill(kit, true);   // text boxes, radios, consent boxes (no uploads on this pass)
+      report.filled.push(...r.filled);
+      report.missing.push(...r.missing.filter(m => !/^(month|year|day|search|mm|yyyy|dd)$/i.test(m)));
+    } finally { ROOT = saved; }
+  }
+
+  async function wdFillPage(kit) {
+    const report = { filled: [], missing: [] };
+    if (/experience/.test(wdStepName())) await wdExperience(kit, report);
+    await wdGeneric(kit, report);
+    report.missing = [...new Set(report.missing)].filter(Boolean);
+    return report;
+  }
+
+  const escH = x => String(x).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+  function wdStop(kit, why, list = []) {
+    ss.set(WD_KEY, "paused:" + kit.id);
+    show(`<div style="font-weight:700">${escH(kit.company)}</div><div style="color:#9a5b00;margin-top:6px;font-weight:600">${escH(why)}</div>` +
+      (list.length ? `<ul style="margin:4px 0 0;padding-left:18px">${list.map(x => `<li>${escH(x)}</li>`).join("")}</ul>` : "") +
+      `<div style="margin-top:8px">Fix these on the page, then click <b>Continue filling</b>.</div>`);
+    setTab(`${list.length || 1} TO CHECK`, "#9a5b00");
+    refreshState();
+  }
+  function wdStart(kitId) {
+    ss.set(WD_KEY, kitId);
+    ss.set("rolewise:lastKit", kitId);
+    ss.del("rolewise:wdTries");
+    show("Filling every page of this application. You'll only need to click Submit at the end.");
+    setTab("FILLING…", "#1d3461");
+    refreshState();
+    wdTick();
+  }
+  let wdBusy = false, wdSaid = "";
+  async function wdTick() {
+    const state = ss.get(WD_KEY);
+    if (!state || state.startsWith("paused:") || wdBusy || busy) return;
+    if (!ui.isConnected) document.body.appendChild(ui);
+    wdBusy = true;
+    try {
+      const kit = await kitFile(`kits/${state}.json`);
+      const main = (document.querySelector("main") || document.body).innerText || "";
+      // Start page: apply manually (Rolewise fills it; Workday's own CV reader often garbles dates).
+      const manual = byText("button, a", /^apply manually$/i);
+      if (manual && /start your application/i.test(main)) { manual.click(); await sleep(2000); return; }
+      // Sign in / create account: Rolewise fills the email; the password is always yours (Chrome can suggest one).
+      if ([...document.querySelectorAll("input[type=password]")].some(vis)) {
+        const email = [...document.querySelectorAll("input[type=email], input[data-automation-id=email], input[autocomplete=email]")].find(vis);
+        if (email && !email.value && kit.answers.email) setNative(email, kit.answers.email);
+        const mode = /create account/i.test(main) && !/^sign in$/i.test(norm((byText("button", /^(sign in|create account)$/i) || {}).innerText || "")) ? "create" : "signin";
+        if (wdSaid !== mode) {
+          wdSaid = mode;
+          show(mode === "create"
+            ? "<b>Create your account</b><br>Your email is filled. Click the password box and choose Chrome's <i>suggested password</i> (use it for Verify too), tick the box and click Create Account. Rolewise carries on after that; if Workday emails a verification link, open it."
+            : "<b>Sign in</b><br>Your email is filled. Let Chrome fill your password and click Sign In. Rolewise carries on after that.");
+        }
+        return;
+      }
+      const step = wdStepName();
+      if (!step) return;
+      if (/review/.test(step)) {
+        ss.del(WD_KEY);
+        ss.set("rolewise:lastKit", kit.id);
+        show(`<div style="font-weight:700">${escH(kit.company)}</div><div style="margin-top:6px;color:#1f7a4d;font-weight:700">Every page is filled ✓</div>` +
+          `<div style="margin-top:6px">Read the Review page, then click <b>Submit</b>.</div>`);
+        setTab("FILLED ✓", "#1f7a4d");
+        refreshState();
+        return;
+      }
+      const tries = JSON.parse(ss.get("rolewise:wdTries") || "{}");
+      if ((tries[step] || 0) >= 2) {
+        const errs = [...document.querySelectorAll("[data-automation-id=errorMessage], [data-automation-id=errorBanner] li, [role=alert]")]
+          .filter(vis).map(e => norm(e.innerText)).filter(Boolean);
+        return wdStop(kit, "Workday won't move past this page.", errs.slice(0, 8));
+      }
+      show(`Filling: ${escH(step.replace(/^./, c => c.toUpperCase()))}…`);
+      await sleep(1500);   // let the page finish loading its fields
+      const r = await wdFillPage(kit);
+      if (r.missing.length) {
+        document.querySelectorAll("main button[aria-haspopup=listbox], main input, main textarea").forEach(el => {
+          if (r.missing.includes(labelFor(el).replace(/select one|required/gi, "").trim())) el.style.outline = "3px solid #e0a800";
+        });
+        addDraftBars(kit, [...document.querySelectorAll("main textarea, main input[type=text]")], r.missing);
+        return wdStop(kit, `${r.missing.length} for you to answer on this page`, r.missing);
+      }
+      tries[step] = (tries[step] || 0) + 1;
+      ss.set("rolewise:wdTries", JSON.stringify(tries));
+      const next = byText("button", /^(save and continue|next|continue)$/i);
+      if (!next) return wdStop(kit, "Couldn't find Save and Continue on this page.");
+      next.click();   // never Submit: that one is yours
+      for (let i = 0; i < 30 && wdStepName() === step; i++) {
+        await sleep(500);
+        if ([...document.querySelectorAll("[data-automation-id=errorMessage], [data-automation-id=errorBanner]")].some(vis)) break;
+      }
+    } catch (e) {
+      show(`Rolewise stopped: ${escH(e.message)}`);
+    } finally { wdBusy = false; }
+  }
+  // "Continue filling" after a stop.
+  if (WORKDAY) btn.addEventListener("click", e => {
+    const s = ss.get(WD_KEY);
+    if (s && s.startsWith("paused:")) { e.stopImmediatePropagation(); wdStart(s.slice(7)); }
+  }, true);
+  // Opened from the queue on a posting that has closed: say so and take the job out of the queue (tracker: posting-closed).
+  const CLOSED_TEXT = /page you are looking for doesn'?t exist|no longer (accepting applications|available|open)|not currently accepting applications|job (is )?no longer (available|open)|position (has been|is) (filled|closed)|this (job|position|posting) has (expired|closed|been (filled|removed))|job not found|posting (is )?closed/i;
+  if (window.top === window && /(rolewise|jobify)-fill/.test(location.hash) && !LINKEDIN) {
+    setTimeout(async () => {
+      const text = (document.body && document.body.innerText || "").slice(0, 3000);
+      if (!CLOSED_TEXT.test(text)) return;
+      let kit = null;
+      try { kit = matchKit(await loadIndex()); } catch (e) {}
+      if (!kit) return;
+      ss.del(WD_KEY);
+      if (!ui.isConnected) document.body.appendChild(ui);
+      show(`<b>${escH(kit.company)}: this posting has closed.</b><div style="margin-top:6px">Rolewise took it out of your queue.</div>`);
+      setTab("CLOSED", "#5b6880");
+      chrome.runtime.sendMessage({ type: "rolewise-native", payload: { action: "skip", id: kit.id, reason: "posting-closed (seen when opened from the queue)" } }, () => {});
+      chrome.storage.local.get({ submitted: [] }, d => { if (!d.submitted.includes(kit.id)) chrome.storage.local.set({ submitted: d.submitted.concat(kit.id) }); });
+    }, 7000);
+  }
+  // Opened from the Rolewise menu: remember the job for this tab, so the fill survives Workday's redirects and sign-in.
+  if (WORKDAY && window.top === window && /(rolewise|jobify)-fill/.test(location.hash)) {
+    loadIndex().then(index => { const k = matchKit(index); if (k && !ss.get(WD_KEY)) wdStart(k.id); }).catch(() => {});
   }
 
   let forceAgain = false;
