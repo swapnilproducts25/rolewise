@@ -50,7 +50,7 @@ def main():
 
     step(1, "Python packages")
     user = [] if sys.prefix != sys.base_prefix else ["--user"]   # --user isn't allowed inside a virtualenv
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", *user, "python-docx", "pyyaml"])
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", *user, "python-docx", "pyyaml", "pymupdf"])
     import install_native_host as host   # after the packages, which build_kits needs
 
     step(2, "Load the add-on in Chrome")

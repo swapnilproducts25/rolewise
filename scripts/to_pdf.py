@@ -72,3 +72,9 @@ if __name__ == "__main__":
         out = convert(jid, exe)
         if out:
             print(f"{jid}: {', '.join(out)}")
+    # Layout check on every CV PDF (dates flush right, rule under each heading, nothing past the margin, <= 2 pages).
+    try:
+        import check_cv
+    except ImportError:
+        sys.exit("CV layout NOT checked: PyMuPDF missing (pip install pymupdf), then run scripts/check_cv.py <id>.")
+    sys.exit(check_cv.main(ids))

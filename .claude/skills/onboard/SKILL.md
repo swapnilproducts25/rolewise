@@ -10,7 +10,7 @@ changed later with `/profile`. Be warm and brief, plain words, no jargon. One me
 
 ## 0. Where are we running?
 - **Web/phone (default)**: a claude.ai/code session on their own private GitHub copy (a cloud machine; no Chrome,
-  no LibreOffice by default). Set `run_mode: cloud`, `fill_addon: false`. Run `pip install python-docx pyyaml` and
+  no LibreOffice by default). Set `run_mode: cloud`, `fill_addon: false`. Run `pip install python-docx pyyaml pymupdf` and
   use `python` for every script.
 - **Laptop**: Claude Code on their own computer. Run `python scripts/check_setup.py` and fix what it flags (it prints
   the exact command for each). Set `run_mode: laptop`.
@@ -84,7 +84,7 @@ Close the round with: "That's all I need. You can change any of this any time: j
   connectors, allowed tools Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, ArtifactData, Artifact and **Agent** (the CV writer and
   reviewer agents), prompt:
   > Run Rolewise's /daily loop for the user in profile/user.yaml. Start with `git pull --rebase` and
-  > `pip install python-docx pyyaml`. Follow CLAUDE.md hard rules: never submit an application or send any message
+  > `pip install python-docx pyyaml pymupdf`. Follow CLAUDE.md hard rules: never submit an application or send any message
   > except the daily briefing to the user's own email. Prepare jobs (CV, cover letter, answers) and send the briefing.
   > End with a commit and `git push`.
   If the tool isn't available, give them the same settings to paste at claude.ai/code/routines.

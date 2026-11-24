@@ -21,7 +21,7 @@ def check(name, ok, fix, needed=True):
 
 
 check("Python 3.10+", sys.version_info >= (3, 10), "Install Python 3.12 from python.org (tick 'Add to PATH').")
-for mod, pkg in (("docx", "python-docx"), ("yaml", "pyyaml")):
+for mod, pkg in (("docx", "python-docx"), ("yaml", "pyyaml"), ("pymupdf", "pymupdf")):
     check(f"Python package {pkg}", importlib.util.find_spec(mod) is not None, f"python -m pip install {pkg}")
 
 soffice = shutil.which("soffice") or next((p for p in (

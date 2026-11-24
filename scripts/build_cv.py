@@ -179,7 +179,42 @@ def build(cv, out, variant=None):
             head, _, rest = e["title"].partition(" - ")
             name, paren, link = head.partition(" (")
             meta = ", ".join(x for x in [e.get("dates"), e.get("location")] if x)
-            set_text(hp, f"{name.upper()}{paren + link if paren else ''}{' - ' + rest if rest else ''}\t{meta}")
+            link = link.rstrip(")")
+            hl = h4.find(qn("w:hyperlink"))
+            if paren and hl is not None:
+                # Keep the copied heading's hyperlink run (blue, underlined) and point it at this project's link.
+                from docx.opc.constants import RELATIONSHIP_TYPE as RT
+                url = e.get("url") or ("https://" + link if not link.startswith("http") else link)
+                hl.set(qn("r:id"), doc.part.relate_to(url, RT.HYPERLINK, is_external=True))
+                hl_ts = list(hl.iter(qn("w:t")))
+                hl_ts[0].text = link
+                for t in hl_ts[1:]:
+                    t.getparent().remove(t)
+                pre = [r for r in h4.findall(qn("w:r")) if h4.index(r) < h4.index(hl)]
+                post = [r for r in h4.findall(qn("w:r")) if h4.index(r) > h4.index(hl)]
+                for r in pre[1:]:
+                    h4.remove(r)
+                pre_ts = list(pre[0].iter(qn("w:t")))
+                pre_ts[0].text = f"{name.upper()} ("
+                for t in pre_ts[1:]:
+                    t.getparent().remove(t)
+                for tab in pre[0].findall(qn("w:tab")):
+                    pre[0].remove(tab)
+                r0 = post[0]
+                for child in list(r0):
+                    if child.tag != qn("w:rPr"):
+                        r0.remove(child)
+                for r in post[1:]:
+                    h4.remove(r)
+                def _t(txt):
+                    t = r0.makeelement(qn("w:t"), {"{http://www.w3.org/XML/1998/namespace}space": "preserve"})
+                    t.text = txt
+                    return t
+                r0.append(_t(f"){' - ' + rest if rest else ''}"))
+                r0.append(r0.makeelement(qn("w:tab"), {}))
+                r0.append(_t(meta))
+            else:
+                set_text(hp, f"{name.upper()}{paren + link + ')' if paren else ''}{' - ' + rest if rest else ''}\t{meta}")
             projects.append({"title": None, "h4": hp, "bullets": [bp]})
             proj_ids.append(e["id"])
     for proj_id, block in zip(proj_ids, projects):
@@ -246,12 +281,24 @@ def build(cv, out, variant=None):
             head = copy.deepcopy(exp._p)
             sub._p.addprevious(head)
             set_text(Paragraph(head, sub._parent), cv["projects_heading"].upper())
-            rule = exp._p.getnext()
-            if rule is not None and rule.findall(".//" + qn("w:drawing")) + rule.findall(".//" + qn("w:pict")):
-                line = copy.deepcopy(rule)
-                for k, dp in enumerate(line.iter("{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}docPr")):
-                    dp.set("id", str(9000 + k))   # drawing ids must be unique in the document
-                head.addnext(line)
+            # The rule line may sit a spacer paragraph or two below the heading: copy everything up to and including it.
+            under, el = [], exp._p.getnext()
+            while el is not None and el.tag == qn("w:p") and len(under) < 4:
+                under.append(el)
+                if el.findall(".//" + qn("w:drawing")) + el.findall(".//" + qn("w:pict")):
+                    break
+                el = el.getnext()
+            else:
+                under = []
+            if under and not (under[-1].findall(".//" + qn("w:drawing")) + under[-1].findall(".//" + qn("w:pict"))):
+                under = []
+            anchor_h = head
+            for k, src_el in enumerate(under):
+                line = copy.deepcopy(src_el)
+                for j, dp in enumerate(line.iter("{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}docPr")):
+                    dp.set("id", str(9000 + 10 * k + j))   # drawing ids must be unique in the document
+                anchor_h.addnext(line)
+                anchor_h = line
             sub._p.getparent().remove(sub._p)
 
     # Awards text and skills.
