@@ -5,6 +5,10 @@ email: ""                     # Q1: the briefing goes here
 file_prefix: ""               # defaults to name: "<prefix> - CV - <Company>.pdf"
 home_region: ""               # derived from Q3: uae | eu | uk | us | other
 cv_layout: modern             # Q9: classic | modern | compact (or "template" for your own Word file)
+# cv_template:                 # only with cv_layout: template (your own Word file), e.g.
+#   file: profile/my-cv.docx
+#   body_pt: 10                # optional: body text size (default: as in your file)
+#   line_spacing: 1.1          # optional: cap line spacing so a larger size still fits
 run_mode: cloud               # cloud (default: claude.ai/code + a daily routine) | laptop (Claude Code on your computer)
 fill_addon: false             # true once Rolewise Fill is installed on a laptop
 drive_folder_id: ""           # created by /onboard (a private "Rolewise" folder in your Drive)

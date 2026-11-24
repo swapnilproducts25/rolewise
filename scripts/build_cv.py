@@ -327,6 +327,25 @@ def build(cv, out, variant=None):
             set_text(Paragraph(el, skill_paras[0]._parent), text, bold_rpr, normal_rpr)
             anchor = el
 
+    # Optional body text size and line spacing (user.yaml cv_template.body_pt / line_spacing), e.g. a template written
+    # in 9pt raised to 10pt with slightly tighter lines so it still fits the same pages. The body size is the
+    # template's most common run size; headings, name and contact line keep theirs.
+    body_pt, spacing = _TPL.get("body_pt"), _TPL.get("line_spacing")
+    root = doc.element.body
+    if body_pt:
+        sizes = [el.get(qn("w:val")) for el in root.iter(qn("w:sz"))]
+        base = max(set(sizes), key=sizes.count) if sizes else None
+        new = str(int(round(float(body_pt) * 2)))
+        for el in list(root.iter(qn("w:sz"))) + list(root.iter(qn("w:szCs"))):
+            if el.get(qn("w:val")) == base:
+                el.set(qn("w:val"), new)
+    if spacing:
+        cap = int(round(float(spacing) * 240))
+        for el in root.iter(qn("w:spacing")):
+            line = el.get(qn("w:line"))
+            if line and el.get(qn("w:lineRule"), "auto") == "auto" and int(float(line)) > cap:
+                el.set(qn("w:line"), str(cap))
+
     out.parent.mkdir(parents=True, exist_ok=True)
     doc.save(out)
 
